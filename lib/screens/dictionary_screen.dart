@@ -96,7 +96,7 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.all(8.0),
+      padding: const EdgeInsets.only(top: 15.0, left: 25.0, right: 25.0),
       child: TextField(
         controller: _searchController,
         decoration: InputDecoration(
@@ -161,23 +161,50 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
 
   Widget _buildResultCard(Map<String, dynamic> entry) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 10.0),
       child: Card(
         color: const Color.fromARGB(43, 68, 186, 255),
-        child: ListTile(
-          title: FuriganaText(
-            kanji: entry['keb'] ?? entry['reb'],
-            reading: entry['reb'] ?? '',
-          ),
-          subtitle: Center(
-            child: Text(
-              entry['gloss'] ?? '',
-              style: TextStyle(color: Colors.grey),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(30.0),
+        ),
+        child: InkWell(
+          onTap: () => _showEntryDetails(context, entry),
+          borderRadius: BorderRadius.circular(25.0),
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(vertical: 12.0, horizontal: 15.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Furigana text (kanji + reading)
+                FuriganaText(
+                  kanji: entry['keb'] ?? entry['reb'],
+                  reading: entry['reb'] ?? '',
+                  kanjiStyle: TextStyle(
+                    fontSize: 24,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  readingStyle: TextStyle(
+                    fontSize: 14,
+                    color: Colors.lightBlueAccent,
+                  ),
+                ),
+
+                // Spacer between word and meaning
+                const SizedBox(height: 10.0),
+
+                // Meaning text
+                Text(
+                  entry['gloss'] ?? '',
+                  style: TextStyle(color: Colors.grey[350]),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
           ),
-          onTap: () => _showEntryDetails(context, entry),
         ),
       ),
     );

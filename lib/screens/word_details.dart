@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/database_helper.dart';
 import '../widgets/furigana.dart';
+import 'dart:async';
 
 class WordDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> entry;
@@ -86,11 +87,30 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
   """, [entSeq]);
   }
 
-  void _addToFlashcards() {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Word added to flashcards'),
-      backgroundColor: Colors.green,
-    ));
+  Future<void> _addToFlashcards() async {
+    try {
+      final entryId = widget.entry['ent_seq'] as int;
+      final added = await DatabaseHelper.addToFSRS(entryId);
+
+      // Show appropriate message
+      if (added) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Word added to flashcards'),
+          backgroundColor: Colors.green,
+        ));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Word already in your flashcards'),
+          backgroundColor: Colors.amber,
+        ));
+      }
+    } catch (e) {
+      print('Error adding to flashcards: $e');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Could not add word to flashcards'),
+        backgroundColor: Colors.red,
+      ));
+    }
   }
 
   @override

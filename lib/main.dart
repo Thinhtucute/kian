@@ -3,7 +3,20 @@ import 'screens/learn_screen.dart';
 import 'screens/dictionary_screen.dart';
 import 'widgets/database_helper.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize DatabaseHelper with FFI support
+  await DatabaseHelper.initialize();
+  
+  await DatabaseHelper.debugTableStructure();
+  // Test if FTS5 actually works (regardless of table reports)
+  final fts5Works = await DatabaseHelper.testFTS5Functionality();
+  
+  // If your app needs to know if FTS5 is available:
+  print('FTS5 functionality is ${fts5Works ? 'available' : 'not available'}.');
+  await DatabaseHelper.initializeFSRS();
+  
   runApp(MyApp());
 }
 

@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import '../widgets/database_helper.dart';
+import '../helpers/fsrs_helper.dart';
 import '../widgets/furigana.dart';
 
 class LearnScreen extends StatefulWidget {
+  const LearnScreen({super.key}); 
+
   @override
-  _LearnScreenState createState() => _LearnScreenState();
+  LearnScreenState createState() => LearnScreenState();
 }
 
-class _LearnScreenState extends State<LearnScreen> {
+class LearnScreenState extends State<LearnScreen> {
   List<Map<String, dynamic>> _cards = [];
   bool _isLoading = true;
   bool _showingAnswer = false;
@@ -45,7 +47,7 @@ class _LearnScreenState extends State<LearnScreen> {
     });
 
     try {
-      final cards = await DatabaseHelper.getDueCards();
+      final cards = await FSRSHelper.getDueCards();
 
       setState(() {
         _cards = cards;
@@ -57,7 +59,7 @@ class _LearnScreenState extends State<LearnScreen> {
         _startTime = DateTime.now().millisecondsSinceEpoch;
       });
     } catch (e) {
-      print('Error loading cards: $e');
+      debugPrint('Error loading cards: $e');
       setState(() {
         _isLoading = false;
       });
@@ -77,7 +79,7 @@ class _LearnScreenState extends State<LearnScreen> {
 
     try {
       final card = _cards[_currentCardIndex];
-      await DatabaseHelper.processReview(card['entry_id'], isGood,
+      await FSRSHelper.processReview(card['entry_id'], isGood,
           reviewDuration: duration);
 
       setState(() {
@@ -86,7 +88,7 @@ class _LearnScreenState extends State<LearnScreen> {
 
       _nextCard();
     } catch (e) {
-      print('Error processing review: $e');
+      debugPrint('Error processing review: $e');
     }
   }
 
@@ -102,32 +104,85 @@ class _LearnScreenState extends State<LearnScreen> {
     }
   }
 
-  void _finishReview() {
-    _sessionTimer?.cancel();
+  Future<void> _finishReview() async {
+    setState(() {
+      _isLoading = true;
+    });
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Review Session Complete'),
-          content: Text(
-              'You reviewed $_cardsReviewed cards in ${_formatDuration(_sessionDuration)}'),
-          actions: <Widget>[
-            TextButton(
-              child: Text('Close'),
-              onPressed: () {
-                Navigator.of(context).pop(); // Just pop the dialog
-                setState(() {
-                  _cards =
-                      []; // Empty the cards to show the "All caught up" view
-                });
-              },
-            ),
-          ],
+    try {
+      final cards = await FSRSHelper.getDueCards();
+      
+      if (!mounted) return;
+      if (cards.isEmpty) {
+        // No more cards - truly finished
+        _sessionTimer?.cancel();
+
+        setState(() {
+          _cards = [];
+          _isLoading = false;
+        });
+
+        // Show completion dialog since we're really done
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text('Review Session Complete'),
+              content: Text(
+                  'You reviewed $_cardsReviewed cards in ${_formatDuration(_sessionDuration)}'),
+              actions: <Widget>[
+                TextButton(
+                  child: Text('Close'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    setState(() {
+                      _cards = [];
+                    });
+                  },
+                ),
+              ],
+            );
+          },
         );
-      },
-    );
+      } else {
+        // More cards available - continue reviewing
+        setState(() {
+          _cards = cards;
+          _isLoading = false;
+          _currentCardIndex = 0;
+          _showingAnswer = false;
+          _startTime = DateTime.now().millisecondsSinceEpoch;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error checking for more cards: $e');
+      setState(() {
+        _isLoading = false;
+        _cards = [];
+      });
+
+      // Show error completion dialog
+      _sessionTimer?.cancel();
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('Review Session Complete'),
+            content: Text(
+                'You reviewed $_cardsReviewed cards in ${_formatDuration(_sessionDuration)}'),
+            actions: <Widget>[
+              TextButton(
+                child: Text('Close'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          );
+        },
+      );
+    }
   }
 
   String _formatDuration(int seconds) {

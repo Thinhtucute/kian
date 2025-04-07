@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../widgets/database_helper.dart';
+import '../helpers/dictionary_helper.dart';
+import '../helpers/fsrs_helper.dart';
 import '../widgets/furigana.dart';
 import 'dart:async';
 
@@ -42,13 +43,13 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading details: $e');
+      debugPrint('Error loading details: $e');
       setState(() => _isLoading = false);
     }
   }
 
   Future<List<Map<String, dynamic>>> _getMeanings(int entSeq) async {
-    final db = await DatabaseHelper.getDatabase();
+    final db = await DictionaryHelper.getDatabase();
     return await db.rawQuery("""
       SELECT s.id, GROUP_CONCAT(g.gloss, '; ') as definitions
       FROM sense s
@@ -59,7 +60,7 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
   }
 
   Future<List<Map<String, dynamic>>> _getExampleSentences(int entSeq) async {
-    final db = await DatabaseHelper.getDatabase();
+    final db = await DictionaryHelper.getDatabase();
 
     return await db.rawQuery("""
     SELECT 
@@ -77,7 +78,7 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
   }
 
   Future<List<Map<String, dynamic>>> _getPartOfSpeech(int entSeq) async {
-    final db = await DatabaseHelper.getDatabase();
+    final db = await DictionaryHelper.getDatabase();
     return await db.rawQuery("""
     SELECT DISTINCT pos.pos
     FROM sense s
@@ -90,9 +91,10 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
   Future<void> _addToFlashcards() async {
     try {
       final entryId = widget.entry['ent_seq'] as int;
-      final added = await DatabaseHelper.addToFSRS(entryId);
-
-      // Show appropriate message
+      final added = await FSRSHelper.addToFSRS(entryId);
+      
+      if (!mounted) return;
+      
       if (added) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Word added to flashcards'),
@@ -105,7 +107,7 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
         ));
       }
     } catch (e) {
-      print('Error adding to flashcards: $e');
+      debugPrint('Error adding to flashcards: $e');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Could not add word to flashcards'),
         backgroundColor: Colors.red,
@@ -205,7 +207,7 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: const Color.fromARGB(255, 40, 116, 247).withOpacity(0.7),
+        color: const Color.fromARGB(178, 40, 116, 247),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
@@ -308,7 +310,7 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
                 if (examplesBySense.containsKey(senseId)) ...[
                   SizedBox(height: 16),
                   Text(
-                    'Example', // Changed from 'Examples' to singular
+                    'Example',
                     style: TextStyle(
                       fontSize: 18,
                       color: Colors.lightBlueAccent,
@@ -316,11 +318,11 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
                     ),
                   ),
                   SizedBox(height: 10),
-                  Container(
-                    width: double.infinity, // Take full width
+                  SizedBox(
+                    width: double.infinity,
                     child: Column(
                       crossAxisAlignment:
-                          CrossAxisAlignment.center, // Center children
+                          CrossAxisAlignment.center,
                       children: [
                         Text(
                           examplesBySense[senseId]!['japanese_text'] ?? '',

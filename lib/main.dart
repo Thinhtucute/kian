@@ -1,21 +1,40 @@
 import 'package:flutter/material.dart';
+import 'dart:io';  // Add this for File
+import 'package:path/path.dart';  // Add this for join
+import 'package:path_provider/path_provider.dart';
 import 'screens/learn_screen.dart';
 import 'screens/dictionary_screen.dart';
-import 'widgets/database_helper.dart';
+import 'helpers/dictionary_helper.dart';
+import 'helpers/fsrs_helper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize DatabaseHelper with FFI support
-  await DatabaseHelper.initialize();
-  
-  await DatabaseHelper.debugTableStructure();
-  // Test if FTS5 actually works (regardless of table reports)
-  final fts5Works = await DatabaseHelper.testFTS5Functionality();
-  
-  // If your app needs to know if FTS5 is available:
-  print('FTS5 functionality is ${fts5Works ? 'available' : 'not available'}.');
-  await DatabaseHelper.initializeFSRS();
+  try {
+    // Initialize DatabaseHelper with FFI support
+    debugPrint("Starting initialization...");
+    await DictionaryHelper.initialize();
+    
+    // Test dictionary database
+    await DictionaryHelper.debugTableStructure();
+    final fts5Works = await DictionaryHelper.testFTS5Functionality();
+    debugPrint('FTS5 functionality is ${fts5Works ? 'available' : 'not available'}.');
+    
+    // Initialize and verify FSRS database
+    debugPrint("Initializing FSRS...");
+    await FSRSHelper.initialize();
+    
+    // Verify database paths to ensure proper setup
+    debugPrint("Database paths:");
+    final docDir = await getApplicationDocumentsDirectory();
+    debugPrint("Documents directory: ${docDir.path}");
+    final fsrsPath = join(docDir.path, "fsrs.db");
+    final dictPath = join(docDir.path, "jmdict_fts5.db");
+    debugPrint("FSRS database path: $fsrsPath (exists: ${await File(fsrsPath).exists()})");
+    debugPrint("Dictionary path: $dictPath (exists: ${await File(dictPath).exists()})");
+  } catch (e) {
+    debugPrint("Error during initialization: $e");
+  }
   
   runApp(MyApp());
 }
@@ -36,17 +55,17 @@ class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
   @override
-  _MainScreenState createState() => _MainScreenState();
+  MainScreenState createState() => MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
   Future<void>? _databaseFuture;
 
   @override
   void initState() {
     super.initState();
-    _databaseFuture = DatabaseHelper.getDatabase();
+    _databaseFuture = FSRSHelper.getDatabase();
   }
 
   final List<Widget> _screens = [LearnScreen(), DictionaryScreen()];

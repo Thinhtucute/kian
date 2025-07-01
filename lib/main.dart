@@ -5,24 +5,22 @@ import 'package:path_provider/path_provider.dart';
 import 'screens/learn_screen.dart';
 import 'screens/dictionary_screen.dart';
 import 'helpers/dictionary_helper.dart';
-import 'helpers/fsrs_helper.dart';
+import 'helpers/fsrs/fsrs_database.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
     // Initialize DatabaseHelper with FFI support
-    debugPrint("Starting initialization...");
+    debugPrint("Starting FFI support initialization...");
     await DictionaryHelper.initialize();
     
-    // Test dictionary database
     await DictionaryHelper.debugTableStructure();
     final fts5Works = await DictionaryHelper.testFTS5Functionality();
     debugPrint('FTS5 functionality is ${fts5Works ? 'available' : 'not available'}.');
     
-    // Initialize and verify FSRS database
-    debugPrint("Initializing FSRS...");
-    await FSRSHelper.initialize();
+    debugPrint("Initializing database...");
+    await FSRSDatabase.initialize();
     
     // Verify database paths to ensure proper setup
     debugPrint("Database paths:");
@@ -65,7 +63,7 @@ class MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
-    _databaseFuture = FSRSHelper.getDatabase();
+    _databaseFuture = FSRSDatabase.getDatabase();
   }
 
   final List<Widget> _screens = [LearnScreen(), DictionaryScreen()];

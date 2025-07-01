@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../helpers/fsrs_helper.dart';
 import '../widgets/furigana.dart';
+import 'settings_screen.dart';
 
 class LearnScreen extends StatefulWidget {
-  const LearnScreen({super.key}); 
+  const LearnScreen({super.key});
 
   @override
   LearnScreenState createState() => LearnScreenState();
@@ -19,6 +20,10 @@ class LearnScreenState extends State<LearnScreen> {
   Timer? _sessionTimer;
   int _sessionDuration = 0;
   int _cardsReviewed = 0;
+  Map<String, String> _predictedIntervals = {
+    'again': '< 10 min',
+    'good': '~1 day'
+  };
 
   @override
   void initState() {
@@ -66,7 +71,19 @@ class LearnScreenState extends State<LearnScreen> {
     }
   }
 
-  void _showAnswer() {
+  Future<void> _showAnswer() async {
+    final card = _cards[_currentCardIndex];
+
+    // Get predicted intervals for this card
+    try {
+      _predictedIntervals =
+          await FSRSHelper.getPredictedIntervals(card['entry_id']);
+      debugPrint('Predicted intervals: $_predictedIntervals');
+    } catch (e) {
+      debugPrint('Error getting intervals: $e');
+      _predictedIntervals = {'again': '< 10 min', 'good': '~1 day'};
+    }
+
     setState(() {
       _showingAnswer = true;
     });
@@ -111,7 +128,7 @@ class LearnScreenState extends State<LearnScreen> {
 
     try {
       final cards = await FSRSHelper.getDueCards();
-      
+
       if (!mounted) return;
       if (cards.isEmpty) {
         // No more cards - truly finished
@@ -200,6 +217,7 @@ class LearnScreenState extends State<LearnScreen> {
         backgroundColor: const Color.fromARGB(255, 9, 12, 43),
         iconTheme: IconThemeData(color: Colors.white),
         actions: [
+          // Timer display
           Center(
             child: Padding(
               padding: EdgeInsets.only(right: 16.0),
@@ -208,6 +226,16 @@ class LearnScreenState extends State<LearnScreen> {
                 style: TextStyle(color: Colors.white),
               ),
             ),
+          ),
+          // Settings icon
+          IconButton(
+            icon: Icon(Icons.settings, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => SettingsScreen()),
+              );
+            },
           ),
         ],
       ),
@@ -355,45 +383,80 @@ class LearnScreenState extends State<LearnScreen> {
           ),
         ),
 
-        // Rating buttons (visible only when answer is shown)
+        // Rating buttons
         _showingAnswer
-            ? Padding(
-                padding: EdgeInsets.all(16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildRatingButton(
-                      'Again',
-                      Colors.red[700]!,
-                      () => _processRating(false),
+            ? Column(
+                children: [
+                  // Buttons row
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(16, 16, 16, 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildRatingButton(
+                          'Again',
+                          Colors.red[700]!,
+                          () => _processRating(false),
+                          _predictedIntervals['again'] ?? '< 10 min',
+                        ),
+                        _buildRatingButton(
+                          'Good',
+                          Colors.green[700]!,
+                          () => _processRating(true),
+                          _predictedIntervals['good'] ?? '~1 day',
+                        ),
+                      ],
                     ),
-                    _buildRatingButton(
-                      'Good',
-                      Colors.green[700]!,
-                      () => _processRating(true),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               )
-            : SizedBox(height: 88), // Placeholder when buttons aren't visible
+            : SizedBox(height: 100), // Placeholder when buttons aren't visible
       ],
     );
   }
 
-  Widget _buildRatingButton(String label, Color color, VoidCallback onPressed) {
+  Widget _buildRatingButton(
+      String label, Color color, VoidCallback onPressed, String timeInterval) {
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
         foregroundColor: Colors.white,
-        padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+        padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
         textStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),
-        minimumSize: Size(120, 56),
+        minimumSize: Size(120, 72),
       ),
-      child: Text(label),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label),
+          SizedBox(height: 4),
+          Text(
+            timeInterval,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNextReviewText(String text, bool isGood) {
+    return Container(
+      width: 120, // Match button width
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: isGood ? Colors.green[400] : Colors.red[400],
+          fontSize: 14,
+        ),
+      ),
     );
   }
 }

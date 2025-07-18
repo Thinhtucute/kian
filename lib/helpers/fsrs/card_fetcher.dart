@@ -8,7 +8,7 @@ class FSRSCardService {
     try {
       debugPrint('Adding entry $entryId to FSRS');
       final db = await FSRSDatabase.getDatabase();
-      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 60000;
 
       // Check if already exists
       final existing = await db.query('cards',
@@ -38,7 +38,7 @@ class FSRSCardService {
   // Get cards due for review
   static Future<List<Map<String, dynamic>>> getDueCards({int limit = 20}) async {
     final db = await FSRSDatabase.getDatabase();
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 60000;
 
     // Get cards due now
     final dueCards = await db.query('cards',
@@ -54,7 +54,7 @@ class FSRSCardService {
     if (dueCards.isEmpty) {
       final soonDueCards = await db.query('cards',
           where: 'due > ? AND due <= ? AND suspended = 0',
-          whereArgs: [now, now + 86400],
+          whereArgs: [now, now + 1440],
           orderBy: 'due ASC',
           limit: limit);
       cardsToReview = soonDueCards;
@@ -76,7 +76,7 @@ class FSRSCardService {
           enrichedCard['gloss'] = entry['gloss'];
           enrichedCard['due_early'] = showingSoonDue;
           if (showingSoonDue) {
-            enrichedCard['hours_until_due'] = ((card['due'] as int) - now) / 3600;
+            enrichedCard['hours_until_due'] = ((card['due'] as int) - now) / 60;
           }
           enrichedCards.add(enrichedCard);
         }
@@ -109,7 +109,7 @@ class FSRSCardService {
       'lapses': card['lapses'],
       'difficulty': card['difficulty'],
       'stability': card['stability'],
-      'due_date': DateTime.fromMillisecondsSinceEpoch((card['due'] as int) * 1000),
+      'due_date': DateTime.fromMillisecondsSinceEpoch((card['due'] as int) * 60000),
       'success_rate': successRate,
       'review_history': reviews,
     };

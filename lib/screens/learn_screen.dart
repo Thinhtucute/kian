@@ -445,18 +445,4 @@ class LearnScreenState extends State<LearnScreen> {
       ),
     );
   }
-
-  Widget _buildNextReviewText(String text, bool isGood) {
-    return Container(
-      width: 120, // Match button width
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: isGood ? Colors.green[400] : Colors.red[400],
-          fontSize: 14,
-        ),
-      ),
-    );
-  }
 }

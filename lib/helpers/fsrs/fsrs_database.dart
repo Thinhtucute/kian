@@ -68,21 +68,6 @@ class FSRSDatabase {
       )
       ''');
 
-      // FSRS parameters table
-      await txn.execute('''
-      CREATE TABLE fsrs_config (
-        id INTEGER PRIMARY KEY CHECK (id = 1),
-        w REAL NOT NULL DEFAULT 0.1,
-        target_retention REAL NOT NULL DEFAULT 0.9
-      )
-      ''');
-
-      // Insert default parameters
-      await txn.execute('''
-      INSERT INTO fsrs_config (id, w, target_retention) 
-      VALUES (1, 0.1, 0.9)
-      ''');
-
       // Create indexes for performance
       await txn.execute('CREATE INDEX idx_cards_due ON cards(due)');
       await txn.execute('CREATE INDEX idx_reviews_entry ON reviews(entry_id)');

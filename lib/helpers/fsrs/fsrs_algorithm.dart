@@ -288,8 +288,5 @@ class FSRSAlgorithm {
       double years = days / 365;
       return '${years.toStringAsFixed(1)} years';
     }
-    // Default fallback
-    // This should never be reached, but ensures a String is always returned
-    return '${days.toStringAsFixed(2)} days';
   }
 }

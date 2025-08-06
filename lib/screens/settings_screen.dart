@@ -15,7 +15,7 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         padding: EdgeInsets.all(16),
         children: [
-          _buildSectionHeader('Review Settings'),
+          _buildSectionHeader('Temp shit'),
           
           // Placeholder settings (not functional yet)
           _buildSettingCard('Maximum cards per session', '20 cards'),

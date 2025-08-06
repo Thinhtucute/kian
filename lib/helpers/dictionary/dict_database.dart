@@ -41,7 +41,6 @@ class DictionaryDatabase {
 
     return await openDatabase(
       dbPath,
-      version: 1,
       readOnly: true,
       onOpen: (db) async {
         debugPrint('Dictionary database opened in read-only mode');

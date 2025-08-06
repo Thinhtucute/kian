@@ -1,0 +1,1 @@
+ D:\\hacker\\idk\\anki2\\.dart_tool\\flutter_build\\edfc7ac749601357fd49cd4891b779de\\native_assets.yaml: 

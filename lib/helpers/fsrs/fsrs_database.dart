@@ -44,8 +44,8 @@ class FSRSDatabase {
       await txn.execute('''
       CREATE TABLE cards (
         entry_id INTEGER PRIMARY KEY,
-        stability REAL NOT NULL DEFAULT 2880.0,
-        difficulty REAL NOT NULL DEFAULT 0.3,
+        stability REAL NOT NULL DEFAULT 3321.36,
+        difficulty REAL NOT NULL DEFAULT 6.4133,
         due INTEGER NOT NULL,
         last_review INTEGER,
         reps INTEGER NOT NULL DEFAULT 0,
@@ -62,8 +62,8 @@ class FSRSDatabase {
         entry_id INTEGER NOT NULL,
         timestamp INTEGER NOT NULL,
         rating INTEGER NOT NULL, 
-        elapsed_minutes REAL NOT NULL,
-        scheduled_minutes REAL NOT NULL,
+        elapsed_days REAL NOT NULL,
+        scheduled_days REAL NOT NULL,
         review_duration INTEGER
       )
       ''');

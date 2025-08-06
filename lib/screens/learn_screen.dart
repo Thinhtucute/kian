@@ -21,9 +21,15 @@ class LearnScreenState extends State<LearnScreen> {
   int _sessionDuration = 0;
   int _cardsReviewed = 0;
   Map<String, String> _predictedIntervals = {
-    'again': '< 10 min',
+    'again': '1 day',
     'good': '~1 day'
   };
+  
+  // New session statistics
+  int _correctAnswers = 0;
+  int _incorrectAnswers = 0;
+  double _averageResponseTime = 0.0;
+  final List<int> _responseTimes = [];
 
   @override
   void initState() {
@@ -74,14 +80,14 @@ class LearnScreenState extends State<LearnScreen> {
   Future<void> _showAnswer() async {
     final card = _cards[_currentCardIndex];
 
-    // Get predicted intervals for this card
+    // Get predicted intervals for this card BEFORE any review is processed
     try {
       _predictedIntervals =
           await FSRSHelper.getPredictedIntervals(card['entry_id']);
-      debugPrint('Predicted intervals: $_predictedIntervals');
+      debugPrint('Predicted intervals for card ${card['entry_id']}: $_predictedIntervals');
     } catch (e) {
       debugPrint('Error getting intervals: $e');
-      _predictedIntervals = {'again': '< 10 min', 'good': '~1 day'};
+      _predictedIntervals = {'again': '1 day', 'good': '~1 day'};
     }
 
     setState(() {
@@ -93,9 +99,21 @@ class LearnScreenState extends State<LearnScreen> {
     // Calculate time spent on this card
     final now = DateTime.now().millisecondsSinceEpoch;
     final duration = now - _startTime;
+    
+    // Update session statistics
+    _responseTimes.add(duration);
+    if (isGood) {
+      _correctAnswers++;
+    } else {
+      _incorrectAnswers++;
+    }
+    _averageResponseTime = _responseTimes.reduce((a, b) => a + b) / _responseTimes.length;
 
     try {
       final card = _cards[_currentCardIndex];
+      debugPrint('Processing review for card ${card['entry_id']}: ${isGood ? "Good" : "Again"}');
+      debugPrint('Current predicted intervals: $_predictedIntervals');
+      
       await FSRSHelper.processReview(card['entry_id'], isGood,
           reviewDuration: duration);
 
@@ -111,12 +129,16 @@ class LearnScreenState extends State<LearnScreen> {
 
   void _nextCard() {
     if (_currentCardIndex < _cards.length - 1) {
+      debugPrint('Moving to next card: ${_currentCardIndex + 1} -> ${_currentCardIndex + 2}');
       setState(() {
         _currentCardIndex++;
         _showingAnswer = false;
         _startTime = DateTime.now().millisecondsSinceEpoch;
+        // Reset predicted intervals for the new card
+        _predictedIntervals = {'again': '1 day', 'good': '~1 day'};
       });
     } else {
+      debugPrint('Finished current card set, checking for more cards');
       _finishReview();
     }
   }
@@ -131,39 +153,15 @@ class LearnScreenState extends State<LearnScreen> {
 
       if (!mounted) return;
       if (cards.isEmpty) {
-        // No more cards - truly finished
+        // No more 24h due cards
         _sessionTimer?.cancel();
 
         setState(() {
           _cards = [];
           _isLoading = false;
         });
-
-        // Show completion dialog since we're really done
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: Text('Review Session Complete'),
-              content: Text(
-                  'You reviewed $_cardsReviewed cards in ${_formatDuration(_sessionDuration)}'),
-              actions: <Widget>[
-                TextButton(
-                  child: Text('Close'),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    setState(() {
-                      _cards = [];
-                    });
-                  },
-                ),
-              ],
-            );
-          },
-        );
       } else {
-        // More cards available - continue reviewing
+        // 24 hours due cards available
         setState(() {
           _cards = cards;
           _isLoading = false;
@@ -217,6 +215,28 @@ class LearnScreenState extends State<LearnScreen> {
         backgroundColor: const Color.fromARGB(255, 9, 12, 43),
         iconTheme: IconThemeData(color: Colors.white),
         actions: [
+          // Session statistics
+          if (_cardsReviewed > 0)
+            PopupMenuButton<String>(
+              icon: Icon(Icons.analytics, color: Colors.white),
+              onSelected: (value) {},
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  enabled: false,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Session Stats', style: TextStyle(fontWeight: FontWeight.bold)),
+                      SizedBox(height: 8),
+                      Text('Correct: $_correctAnswers'),
+                      Text('Incorrect: $_incorrectAnswers'),
+                      Text('Accuracy: ${_calculateAccuracy()}%'),
+                      Text('Avg Time: ${_formatDuration((_averageResponseTime / 1000).round())}'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           // Timer display
           Center(
             child: Padding(
@@ -397,7 +417,7 @@ class LearnScreenState extends State<LearnScreen> {
                           'Again',
                           Colors.red[700]!,
                           () => _processRating(false),
-                          _predictedIntervals['again'] ?? '< 10 min',
+                          _predictedIntervals['again'] ?? '1 day',
                         ),
                         _buildRatingButton(
                           'Good',
@@ -444,5 +464,11 @@ class LearnScreenState extends State<LearnScreen> {
         ],
       ),
     );
+  }
+
+  double _calculateAccuracy() {
+    final total = _correctAnswers + _incorrectAnswers;
+    if (total == 0) return 0.0;
+    return ((_correctAnswers / total) * 100).roundToDouble();
   }
 }

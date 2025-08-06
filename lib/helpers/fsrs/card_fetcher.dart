@@ -8,7 +8,8 @@ class FSRSCardService {
     try {
       debugPrint('Adding entry $entryId to FSRS');
       final db = await FSRSDatabase.getDatabase();
-      final now = DateTime.now().millisecondsSinceEpoch ~/ 60000;
+      final now = DateTime.now().millisecondsSinceEpoch ~/
+          (1000 * 60 * 60 * 24); // Convert to days
 
       // Check if already exists
       final existing = await db.query('cards',
@@ -36,36 +37,23 @@ class FSRSCardService {
   }
 
   // Get cards due for review
-  static Future<List<Map<String, dynamic>>> getDueCards({int limit = 20}) async {
+  static Future<List<Map<String, dynamic>>> getDueCards(
+      {int limit = 20}) async {
     final db = await FSRSDatabase.getDatabase();
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 60000;
+    final now = DateTime.now().millisecondsSinceEpoch ~/
+        (1000 * 60 * 60 * 24); // Convert to days
 
-    // Get cards due now
-    final dueCards = await db.query('cards',
-        where: 'due <= ? AND suspended = 0',
+    final allCards = await db.query('cards',
+        where: 'suspended = 0 AND due <= ?',
         whereArgs: [now],
-        orderBy: 'due ASC',
+        orderBy: 'due DESC',
         limit: limit);
 
-    List<Map<String, dynamic>> cardsToReview = dueCards;
-    bool showingSoonDue = false;
-
-    // If no due cards, get cards due within 24h
-    if (dueCards.isEmpty) {
-      final soonDueCards = await db.query('cards',
-          where: 'due > ? AND due <= ? AND suspended = 0',
-          whereArgs: [now, now + 1440],
-          orderBy: 'due ASC',
-          limit: limit);
-      cardsToReview = soonDueCards;
-      showingSoonDue = true;
-    }
-
-    if (cardsToReview.isEmpty) return [];
+    if (allCards.isEmpty) return [];
 
     // Enrich with dictionary data
     List<Map<String, dynamic>> enrichedCards = [];
-    for (var card in cardsToReview) {
+    for (var card in allCards) {
       final entryId = card['entry_id'] as int;
       try {
         final entry = await DictionaryHelper.getEntryById(entryId);
@@ -74,10 +62,6 @@ class FSRSCardService {
           enrichedCard['keb'] = entry['keb'];
           enrichedCard['reb'] = entry['reb'];
           enrichedCard['gloss'] = entry['gloss'];
-          enrichedCard['due_early'] = showingSoonDue;
-          if (showingSoonDue) {
-            enrichedCard['hours_until_due'] = ((card['due'] as int) - now) / 60;
-          }
           enrichedCards.add(enrichedCard);
         }
       } catch (e) {
@@ -92,7 +76,8 @@ class FSRSCardService {
   static Future<Map<String, dynamic>> getCardStats(int entryId) async {
     final db = await FSRSDatabase.getDatabase();
 
-    final cards = await db.query('cards', where: 'entry_id = ?', whereArgs: [entryId]);
+    final cards =
+        await db.query('cards', where: 'entry_id = ?', whereArgs: [entryId]);
     if (cards.isEmpty) return {'found': false};
 
     final card = cards.first;
@@ -101,7 +86,8 @@ class FSRSCardService {
 
     int totalReviews = reviews.length;
     int successfulReviews = reviews.where((r) => r['rating'] == 1).length;
-    double successRate = totalReviews > 0 ? successfulReviews / totalReviews : 0.0;
+    double successRate =
+        totalReviews > 0 ? successfulReviews / totalReviews : 0.0;
 
     return {
       'found': true,
@@ -109,7 +95,8 @@ class FSRSCardService {
       'lapses': card['lapses'],
       'difficulty': card['difficulty'],
       'stability': card['stability'],
-      'due_date': DateTime.fromMillisecondsSinceEpoch((card['due'] as int) * 60000),
+      'due_date': DateTime.fromMillisecondsSinceEpoch(
+          (card['due'] as int) * 1000 * 60 * 60 * 24),
       'success_rate': successRate,
       'review_history': reviews,
     };

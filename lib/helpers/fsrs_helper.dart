@@ -1,6 +1,6 @@
 import 'fsrs/fsrs_database.dart';
 import 'fsrs/card_fetcher.dart';
-import 'fsrs/review_process.dart';
+import 'fsrs/review_service.dart';
 import 'dictionary_helper.dart';
 
 class FSRSHelper {

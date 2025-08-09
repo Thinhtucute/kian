@@ -43,7 +43,7 @@ class FSRSDatabase {
       // Cards table
       await txn.execute('''
       CREATE TABLE cards (
-        entry_id INTEGER PRIMARY KEY,
+        ent_seq INTEGER PRIMARY KEY,
         stability REAL NOT NULL DEFAULT 3321.36,
         difficulty REAL NOT NULL DEFAULT 6.4133,
         due INTEGER NOT NULL,
@@ -59,7 +59,7 @@ class FSRSDatabase {
       await txn.execute('''
       CREATE TABLE reviews (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        entry_id INTEGER NOT NULL,
+        ent_seq INTEGER NOT NULL,
         timestamp INTEGER NOT NULL,
         rating INTEGER NOT NULL, 
         elapsed_days REAL NOT NULL,
@@ -70,7 +70,7 @@ class FSRSDatabase {
 
       // Create indexes for performance
       await txn.execute('CREATE INDEX idx_cards_due ON cards(due)');
-      await txn.execute('CREATE INDEX idx_reviews_entry ON reviews(entry_id)');
+      await txn.execute('CREATE INDEX idx_reviews_entry ON reviews(ent_seq)');
     });
 
     debugPrint('FSRS schema created');

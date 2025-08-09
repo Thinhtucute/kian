@@ -90,8 +90,8 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
 
   Future<void> _addToFlashcards() async {
     try {
-      final entryId = widget.entry['ent_seq'] as int;
-      final added = await FSRSHelper.addToFSRS(entryId);
+      final entSeq = widget.entry['ent_seq'] as int;
+      final added = await FSRSHelper.addToFSRS(entSeq);
       
       if (!mounted) return;
       

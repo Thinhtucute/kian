@@ -83,8 +83,8 @@ class LearnScreenState extends State<LearnScreen> {
     // Get predicted intervals for this card BEFORE any review is processed
     try {
       _predictedIntervals =
-          await FSRSHelper.getPredictedIntervals(card['entry_id']);
-      debugPrint('Predicted intervals for card ${card['entry_id']}: $_predictedIntervals');
+          await FSRSHelper.getPredictedIntervals(card['ent_seq']);
+      debugPrint('Predicted intervals for card ${card['ent_seq']}: $_predictedIntervals');
     } catch (e) {
       debugPrint('Error getting intervals: $e');
       _predictedIntervals = {'again': '1 day', 'good': '~1 day'};
@@ -111,10 +111,10 @@ class LearnScreenState extends State<LearnScreen> {
 
     try {
       final card = _cards[_currentCardIndex];
-      debugPrint('Processing review for card ${card['entry_id']}: ${isGood ? "Good" : "Again"}');
+      debugPrint('Processing review for card ${card['ent_seq']}: ${isGood ? "Good" : "Again"}');
       debugPrint('Current predicted intervals: $_predictedIntervals');
       
-      await FSRSHelper.processReview(card['entry_id'], isGood,
+      await FSRSHelper.processReview(card['ent_seq'], isGood,
           reviewDuration: duration);
 
       setState(() {

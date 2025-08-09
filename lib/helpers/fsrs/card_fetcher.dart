@@ -4,21 +4,21 @@ import '../dictionary_helper.dart';
 
 class FSRSCardService {
   // Add a dictionary entry to FSRS
-  static Future<bool> addCard(int entryId) async {
+  static Future<bool> addCard(int entSeq) async {
     try {
-      debugPrint('Adding entry $entryId to FSRS');
+      debugPrint('Adding entry $entSeq to FSRS');
       final db = await FSRSDatabase.getDatabase();
       final now = DateTime.now().millisecondsSinceEpoch ~/
           (1000 * 60 * 60 * 24); // Convert to days
 
       // Check if already exists
       final existing = await db.query('cards',
-          where: 'entry_id = ?', whereArgs: [entryId], limit: 1);
+          where: 'ent_seq = ?', whereArgs: [entSeq], limit: 1);
       if (existing.isNotEmpty) return false;
 
       // Add to cards table
       await db.insert('cards', {
-        'entry_id': entryId,
+        'ent_seq': entSeq,
         'stability': 2880.0,
         'difficulty': 0.3,
         'due': now,
@@ -54,9 +54,9 @@ class FSRSCardService {
     // Enrich with dictionary data
     List<Map<String, dynamic>> enrichedCards = [];
     for (var card in allCards) {
-      final entryId = card['entry_id'] as int;
+      final entSeq = card['ent_seq'] as int;
       try {
-        final entry = await DictionaryHelper.getEntryById(entryId);
+        final entry = await DictionaryHelper.getEntryById(entSeq);
         if (entry != null) {
           Map<String, dynamic> enrichedCard = {...card};
           enrichedCard['keb'] = entry['keb'];
@@ -65,7 +65,7 @@ class FSRSCardService {
           enrichedCards.add(enrichedCard);
         }
       } catch (e) {
-        debugPrint('Error enriching card $entryId: $e');
+        debugPrint('Error enriching card $entSeq: $e');
       }
     }
 
@@ -73,16 +73,16 @@ class FSRSCardService {
   }
 
   // Get card statistics
-  static Future<Map<String, dynamic>> getCardStats(int entryId) async {
+  static Future<Map<String, dynamic>> getCardStats(int entSeq) async {
     final db = await FSRSDatabase.getDatabase();
 
     final cards =
-        await db.query('cards', where: 'entry_id = ?', whereArgs: [entryId]);
+        await db.query('cards', where: 'ent_seq = ?', whereArgs: [entSeq]);
     if (cards.isEmpty) return {'found': false};
 
     final card = cards.first;
     final reviews = await db.query('reviews',
-        where: 'entry_id = ?', whereArgs: [entryId], orderBy: 'timestamp DESC');
+        where: 'ent_seq = ?', whereArgs: [entSeq], orderBy: 'timestamp DESC');
 
     int totalReviews = reviews.length;
     int successfulReviews = reviews.where((r) => r['rating'] == 1).length;

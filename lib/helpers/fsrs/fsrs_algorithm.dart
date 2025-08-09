@@ -59,11 +59,11 @@ class FSRSAlgorithm {
   }
 
   /// Apply fuzz to interval (official FSRS implementation)
-  static double applyFuzz(double interval, bool enableFuzz, int entryId) {
+  static double applyFuzz(double interval, bool enableFuzz, int entSeq) {
     if (!enableFuzz || interval < 2.5) return interval;
 
     interval = interval.roundToDouble();
-    final bytes = sha256.convert(utf8.encode(entryId.toString())).bytes;
+    final bytes = sha256.convert(utf8.encode(entSeq.toString())).bytes;
     final v = bytes[0] % 11;
     final multiplier = 0.95 + v * 0.01;
     return interval * multiplier;
@@ -182,7 +182,7 @@ class FSRSAlgorithm {
 
   /// Process a review and return updated card state
   Map<String, dynamic> processReview({
-    required int entryId,
+    required int entSeq,
     required String rating, // 'again', 'hard', 'good', 'easy'
     required double currentStability,
     required double currentDifficulty,
@@ -218,7 +218,7 @@ class FSRSAlgorithm {
 
     // Calculate next review interval
     double nextInterval = calculateNextInterval(newStability, requestRetention);
-    nextInterval = applyFuzz(nextInterval, enableFuzz, entryId);
+    nextInterval = applyFuzz(nextInterval, enableFuzz, entSeq);
 
     // For "Again" responses, always use 10 minutes
     if (rating.toLowerCase() == 'again') {
@@ -245,7 +245,7 @@ class FSRSAlgorithm {
 
   /// Preview what intervals would result from each choice
   Map<String, String> previewIntervals({
-    required int entryId,
+    required int entSeq,
     required double currentStability,
     required double currentDifficulty,
     required double elapsedDays,
@@ -259,7 +259,7 @@ class FSRSAlgorithm {
 
     for (String rating in ratings) {
       final result = processReview(
-        entryId: entryId,
+        entSeq: entSeq,
         rating: rating,
         currentStability: currentStability,
         currentDifficulty: currentDifficulty,

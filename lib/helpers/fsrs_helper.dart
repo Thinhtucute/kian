@@ -14,13 +14,13 @@ class FSRSHelper {
   }
 
   // Delegate methods
-  static Future<bool> addToFSRS(int entryId) => FSRSCardService.addCard(entryId);
+  static Future<bool> addToFSRS(int entSeq) => FSRSCardService.addCard(entSeq);
   static Future<List<Map<String, dynamic>>> getDueCards({int limit = 20}) => 
       FSRSCardService.getDueCards(limit: limit);
-  static Future<Map<String, dynamic>> processReview(int entryId, bool isGood, {int? reviewDuration}) => 
-      FSRSReviewService.processReview(entryId, isGood, reviewDuration: reviewDuration);
-  static Future<Map<String, dynamic>> getCardStats(int entryId) => 
-      FSRSCardService.getCardStats(entryId);
-  static Future<Map<String, String>> getPredictedIntervals(int entryId) => 
-      FSRSReviewService.getPredictedIntervals(entryId);
+  static Future<Map<String, dynamic>> processReview(int entSeq, bool isGood, {int? reviewDuration}) => 
+      FSRSReviewService.processReview(entSeq, isGood, reviewDuration: reviewDuration);
+  static Future<Map<String, dynamic>> getCardStats(int entSeq) => 
+      FSRSCardService.getCardStats(entSeq);
+  static Future<Map<String, String>> getPredictedIntervals(int entSeq) => 
+      FSRSReviewService.getPredictedIntervals(entSeq);
 }

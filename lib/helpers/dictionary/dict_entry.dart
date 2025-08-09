@@ -2,30 +2,30 @@ import 'package:flutter/foundation.dart';
 import 'dict_database.dart';
 
 class DictionaryEntryService {
-  static Future<Map<String, dynamic>?> getEntryById(int entryId) async {
+  static Future<Map<String, dynamic>?> getEntryById(int entSeq) async {
     try {
       final db = await DictionaryDatabase.getDatabase();
 
-      debugPrint('Looking up dictionary entry: $entryId');
+      debugPrint('Looking up dictionary entry: $entSeq');
 
       // First verify the entry exists in the reading table (all entries should have readings)
       final entryCheck = await db.rawQuery(
           'SELECT ent_seq FROM reading_element WHERE ent_seq = ? LIMIT 1',
-          [entryId]);
+          [entSeq]);
 
       if (entryCheck.isEmpty) {
-        debugPrint('No entry found with ID $entryId');
+        debugPrint('No entry found with ID $entSeq');
         return null;
       }
 
       // Get reading (should always exist)
       final reading = await db.rawQuery(
           'SELECT reb FROM reading_element WHERE ent_seq = ? LIMIT 1',
-          [entryId]);
+          [entSeq]);
 
       // Get kanji (might not exist for kana-only words)
       final kanji = await db.rawQuery(
-          'SELECT keb FROM kanji_element WHERE ent_seq = ? LIMIT 1', [entryId]);
+          'SELECT keb FROM kanji_element WHERE ent_seq = ? LIMIT 1', [entSeq]);
 
       // Determine if this is a kana-only word
       final isKanaOnly = kanji.isEmpty && reading.isNotEmpty;
@@ -37,11 +37,11 @@ class DictionaryEntryService {
         JOIN sense s ON g.sense_id = s.id
         WHERE s.ent_seq = ?
         LIMIT 1
-      ''', [entryId]);
+      ''', [entSeq]);
 
       // Build response
       final result = {
-        'ent_seq': entryId,
+        'ent_seq': entSeq,
         'keb': kanji.isNotEmpty ? kanji.first['keb'] : null,
         'reb': reading.isNotEmpty ? reading.first['reb'] : null,
         'gloss': gloss.isNotEmpty ? gloss.first['gloss'] : null,
@@ -56,11 +56,11 @@ class DictionaryEntryService {
     }
   }
 
-  static Future<List<Map<String, dynamic>>> getMultipleEntries(List<int> entryIds) async {
-    if (entryIds.isEmpty) return [];
+  static Future<List<Map<String, dynamic>>> getMultipleEntries(List<int> entSeqs) async {
+    if (entSeqs.isEmpty) return [];
     
     final results = <Map<String, dynamic>>[];
-    for (final id in entryIds) {
+    for (final id in entSeqs) {
       final entry = await getEntryById(id);
       if (entry != null) {
         results.add(entry);

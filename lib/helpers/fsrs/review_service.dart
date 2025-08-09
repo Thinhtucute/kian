@@ -5,7 +5,7 @@ import 'fsrs_algorithm.dart';
 class FSRSReviewService {
   static const double targetRetention = 0.9;
 
-  static Future<Map<String, dynamic>> processReview(int entryId, bool isGood,
+  static Future<Map<String, dynamic>> processReview(int entSeq, bool isGood,
       {int? reviewDuration}) async {
     final db = await FSRSDatabase.getDatabase();
     final now = DateTime.now().millisecondsSinceEpoch ~/
@@ -13,7 +13,7 @@ class FSRSReviewService {
 
     // Get current card state
     final cards =
-        await db.query('cards', where: 'entry_id = ?', whereArgs: [entryId]);
+        await db.query('cards', where: 'ent_seq = ?', whereArgs: [entSeq]);
     if (cards.isEmpty) throw Exception('Card not found');
 
     final card = cards.first;
@@ -40,7 +40,7 @@ class FSRSReviewService {
     // Use the corrected FSRS algorithm
     final FSRSAlgorithm fsrs = FSRSAlgorithm(requestRetention: targetRetention);
     final result = fsrs.processReview(
-      entryId: entryId,
+      entSeq: entSeq,
       rating: rating,
       currentStability: stability,
       currentDifficulty: difficulty,
@@ -63,7 +63,7 @@ class FSRSReviewService {
     // Store due in days for database
     final newDue = now + nextIntervalDays.round();
 
-    debugPrint('Review processed for entry $entryId:');
+    debugPrint('Review processed for entry $entSeq:');
     debugPrint('1. Rating: $rating');
     debugPrint('2. Stability: $stability → $newStability');
     debugPrint('3. Difficulty: $difficulty → $newDifficulty');
@@ -84,12 +84,12 @@ class FSRSReviewService {
           'reps': reps + 1,
           'lapses': newLapses
         },
-        where: 'entry_id = ?',
-        whereArgs: [entryId]);
+        where: 'ent_seq = ?',
+        whereArgs: [entSeq]);
 
     // Log the review
     await db.insert('reviews', {
-      'entry_id': entryId,
+      'ent_seq': entSeq,
       'timestamp': now,
       'rating': isGood ? 3 : 1, // 1 = Again, 3 = Good
       'elapsed_days': elapsedDays,
@@ -106,11 +106,11 @@ class FSRSReviewService {
     };
   }
 
-  static Future<Map<String, String>> getPredictedIntervals(int entryId) async {
+  static Future<Map<String, String>> getPredictedIntervals(int entSeq) async {
     final db = await FSRSDatabase.getDatabase();
 
     final cards =
-        await db.query('cards', where: 'entry_id = ?', whereArgs: [entryId]);
+        await db.query('cards', where: 'ent_seq = ?', whereArgs: [entSeq]);
     if (cards.isEmpty) return {'again': '1 day', 'good': '1 day'};
 
     final card = cards.first;
@@ -128,7 +128,7 @@ class FSRSReviewService {
 
     final FSRSAlgorithm fsrs = FSRSAlgorithm(requestRetention: targetRetention);
     return fsrs.previewIntervals(
-        entryId: entryId,
+        entSeq: entSeq,
         currentStability: stability,
         currentDifficulty: difficulty,
         elapsedDays: elapsedDays.toDouble(),

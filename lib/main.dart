@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'dart:io';  // Add this for File
-import 'package:path/path.dart';  // Add this for join
+import 'dart:io';
+import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'screens/learn_screen.dart';
 import 'screens/dictionary_screen.dart';
@@ -11,7 +11,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
-    // Initialize DatabaseHelper with FFI support
     debugPrint("Starting FFI support initialization...");
     await DictionaryHelper.initialize();
     
@@ -22,7 +21,6 @@ void main() async {
     debugPrint("Initializing database...");
     await FSRSDatabase.initialize();
     
-    // Verify database paths to ensure proper setup
     debugPrint("Database paths:");
     final docDir = await getApplicationDocumentsDirectory();
     debugPrint("Documents directory: ${docDir.path}");
@@ -43,7 +41,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      theme: ThemeData.dark(), // Dark mode theme
+      theme: ThemeData.dark(),
       home: MainScreen(),
     );
   }
@@ -89,9 +87,9 @@ class MainScreenState extends State<MainScreen> {
           return Scaffold(
             body: _screens[_selectedIndex],
             bottomNavigationBar: BottomNavigationBar(
-              backgroundColor: const Color.fromARGB(255, 9, 12, 43), // Black bottom tab
-              selectedItemColor: Colors.white, // White for selected item
-              unselectedItemColor: Colors.grey, // Grey for unselected items
+              backgroundColor: const Color.fromARGB(255, 9, 12, 43),
+              selectedItemColor: Colors.white,
+              unselectedItemColor: Colors.grey,
               currentIndex: _selectedIndex,
               onTap: _onItemTapped,
               items: [

@@ -13,8 +13,8 @@ class DictionaryHelper {
   static Future<Database> getDatabase() => DictionaryDatabase.getDatabase();
 
   // Entry lookup
-  static Future<Map<String, dynamic>?> getEntryById(int entryId) => 
-      DictionaryEntryService.getEntryById(entryId);
+  static Future<Map<String, dynamic>?> getEntryById(int entSeq) => 
+      DictionaryEntryService.getEntryById(entSeq);
 
   // Search functions
   static Future<List<Map<String, dynamic>>> searchByKanji(String query, {int limit = 20}) =>

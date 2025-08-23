@@ -3,6 +3,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 class FSRSDatabase {
   static Database? _database;
@@ -25,54 +26,80 @@ class FSRSDatabase {
     Directory documentsDirectory = await getApplicationDocumentsDirectory();
     String dbPath = join(documentsDirectory.path, _dbName);
 
-    return await openDatabase(
-      dbPath,
-      version: 1,
-      onCreate: (Database db, int version) async {
-        await _createTables(db);
-      },
-      onOpen: (db) async {
-        await db.execute('PRAGMA foreign_keys = ON');
-        debugPrint('FSRS database opened');
-      },
-    );
+    bool dbExists = await File(dbPath).exists();
+
+    try {
+      return await openDatabase(
+        dbPath,
+        version: 1,
+        onCreate: dbExists
+            ? null
+            : (Database db, int version) async {
+                await _createTables(db);
+              },
+        onOpen: (db) async {
+          await db.execute('PRAGMA foreign_keys = ON');
+          final result =
+              await db.rawQuery('SELECT COUNT(*) as count FROM cards');
+          final count = Sqflite.firstIntValue(result) ?? 0;
+          debugPrint('FSRS database opened with $count cards');
+        },
+      );
+    } catch (e) {
+      debugPrint('Error opening database: $e');
+
+      if (e.toString().contains('no such table')) {
+        debugPrint('Schema issue detected - recreating database');
+        await File(dbPath).delete();
+        return await openDatabase(
+          dbPath,
+          version: 1,
+          onCreate: (Database db, int version) async {
+            await _createTables(db);
+          },
+        );
+      }
+      rethrow;
+    }
   }
 
   static Future<void> _createTables(Database db) async {
     await db.transaction((txn) async {
-      // Cards table
       await txn.execute('''
       CREATE TABLE cards (
         ent_seq INTEGER PRIMARY KEY,
-        stability REAL NOT NULL DEFAULT 3321.36,
-        difficulty REAL NOT NULL DEFAULT 6.4133,
+        type INTEGER NOT NULL DEFAULT 0, -- 0: new, 1: learning, 2: review, 3:relearning
+        queue INTEGER NOT NULL DEFAULT 0, -- 0: new, 1: learning, 2: review, 3: relearning
         due INTEGER NOT NULL,
         last_review INTEGER,
         reps INTEGER NOT NULL DEFAULT 0,
         lapses INTEGER NOT NULL DEFAULT 0,
-        suspended INTEGER NOT NULL DEFAULT 0,
-        created_at INTEGER NOT NULL
+        left INTEGER NOT NULL DEFAULT 2,
+        stability REAL NOT NULL DEFAULT 2.3065,
+        difficulty REAL NOT NULL DEFAULT 6.4133
       )
       ''');
-
-      // Reviews table
-      await txn.execute('''
-      CREATE TABLE reviews (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ent_seq INTEGER NOT NULL,
-        timestamp INTEGER NOT NULL,
-        rating INTEGER NOT NULL, 
-        elapsed_days REAL NOT NULL,
-        scheduled_days REAL NOT NULL,
-        review_duration INTEGER
-      )
-      ''');
-
-      // Create indexes for performance
       await txn.execute('CREATE INDEX idx_cards_due ON cards(due)');
-      await txn.execute('CREATE INDEX idx_reviews_entry ON reviews(ent_seq)');
     });
-
     debugPrint('FSRS schema created');
+  }
+
+  static Future<void> importBundledDatabase() async {
+    Directory documentsDirectory = await getApplicationDocumentsDirectory();
+    String dbPath = join(documentsDirectory.path, _dbName);
+    if (await File(dbPath).exists()) {
+      debugPrint("Database already exists at $dbPath");
+      return;
+    }
+    try {
+      ByteData data = await rootBundle.load('assets/cards.db');
+      List<int> bytes = data.buffer.asUint8List();
+      await File(dbPath).writeAsBytes(bytes);
+      _database = null;
+      _initialized = false;
+      debugPrint("Imported cards.db from assets");
+    } catch (e) {
+      debugPrint("Error importing database: $e");
+    }
   }
 }

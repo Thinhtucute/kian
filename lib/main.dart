@@ -31,7 +31,7 @@ void main() async {
   } catch (e) {
     debugPrint("Error during initialization: $e");
   }
-  
+  await FSRSDatabase.importBundledDatabase();
   runApp(MyApp());
 }
 

@@ -19,14 +19,15 @@ class FSRSCardService {
       // Add to cards table
       await db.insert('cards', {
         'ent_seq': entSeq,
-        'stability': 2880.0,
-        'difficulty': 0.3,
+        'type': 0,
+        'queue': 0,
+        'stability': 0,
+        'difficulty': 6.4133,
         'due': now,
         'last_review': null,
         'reps': 0,
         'lapses': 0,
-        'suspended': 0,
-        'created_at': now
+        'left': 2,
       });
 
       return true;
@@ -44,9 +45,9 @@ class FSRSCardService {
         (1000 * 60 * 60 * 24); // Convert to days
 
     final allCards = await db.query('cards',
-        where: 'suspended = 0 AND due <= ?',
+        where: 'due <= ?',
         whereArgs: [now],
-        orderBy: 'due DESC',
+        orderBy: 'due ASC',
         limit: limit);
 
     if (allCards.isEmpty) return [];
@@ -85,7 +86,7 @@ class FSRSCardService {
         where: 'ent_seq = ?', whereArgs: [entSeq], orderBy: 'timestamp DESC');
 
     int totalReviews = reviews.length;
-    int successfulReviews = reviews.where((r) => r['rating'] == 1).length;
+    int successfulReviews = reviews.where((r) => r['rating'] == 2).length;
     double successRate =
         totalReviews > 0 ? successfulReviews / totalReviews : 0.0;
 

@@ -67,7 +67,8 @@ class DictionaryDatabase {
         final sample = await db.rawQuery('SELECT * FROM $table LIMIT 1');
         if (sample.isNotEmpty) {
           debugPrint('  Sample row: ${sample.first}');
-        } else {
+        }
+        else {
           debugPrint('  No data in table');
         }
       } catch (e) {
@@ -85,7 +86,8 @@ class DictionaryDatabase {
         if (sample.isNotEmpty) {
           debugPrint('  Columns: ${sample.first.keys.join(', ')}');
           debugPrint('  Sample: ${sample.first}');
-        } else {
+        }
+        else {
           debugPrint('  Table exists but is empty');
         }
       } catch (e) {
@@ -114,7 +116,8 @@ class DictionaryDatabase {
             '✅ FTS5 MATCH query worked! Found ${results.length} results for "$testQuery"');
         debugPrint('First result: ${results.first}');
         return true;
-      } else {
+      }
+      else {
         debugPrint(
             '⚠️ FTS5 MATCH query syntax worked but no results found for "$testQuery"');
         // Try another common word

@@ -4,61 +4,43 @@ import 'package:crypto/crypto.dart';
 import 'dart:convert';
 
 class FSRSAlgorithm {
-  // v6.1.1 weights
-  static const double w0 = 0.212; // Initial stability for Again
-  static const double w1 = 1.2931; // Initial stability for Hard
-  static const double w2 = 2.3065; // Initial stability for Good
-  static const double w3 = 8.2956; // Initial stability for Easy
-  static const double w4 = 6.4133; // Initial difficulty base
-  static const double w5 = 0.8334; // Initial difficulty modifier
-  static const double w6 = 3.0194; // Difficulty decay
-  static const double w7 = 0.001; // Difficulty change per grade
-  static const double w8 = 1.8722; // Stability increase base
-  static const double w9 = 0.1666; // Grade effect on stability
-  static const double w10 = 0.796; // Difficulty effect on stability
-  static const double w11 = 1.4835; // Stability effect on stability
-  static const double w12 = 0.0614; // Retrievability effect on stability
-  static const double w13 = 0.2629; // Post-lapse stability base
-  static const double w14 = 1.6483; // Post-lapse difficulty exponent
-  static const double w15 = 0.6014; // Post-lapse stability exponent
-  static const double w16 = 1.8729; // Post-lapse retrievability effect
-  static const double w17 = 0.5425; // Short-term stability base
-  static const double w18 = 0.0912; // Short-term stability modifier
-  static const double w19 = 0.0658; // Short-term stability decay
-  static const double w20 = 0.1542; // Forgetting curve decay
+  // Weights
+  static const double w0 = 0.1747; // Initial stability for Again
+  static const double w1 = 0.4583; // Initial stability for Hard
+  static const double w2 = 0.4583; // Initial stability for Good
+  static const double w3 = 7.0958; // Initial stability for Easy
+  static const double w4 = 6.6473; // Initial difficulty base
+  static const double w5 = 0.2448; // Initial difficulty modifier
+  static const double w6 = 2.3396; // Difficulty decay
+  static const double w7 = 0.0033; // Difficulty change per grade
+  static const double w8 = 1.2529; // Stability increase base
+  static const double w9 = 0.0000; // Grade effect on stability
+  static const double w10 = 0.4226; // Difficulty effect on stability
+  static const double w11 = 1.3872; // Stability effect on stability
+  static const double w12 = 0.1288; // Retrievability effect on stability
+  static const double w13 = 0.5220; // Post-lapse stability base
+  static const double w14 = 1.0061; // Post-lapse difficulty exponent
+  static const double w15 = 0.8484; // Post-lapse stability exponent
+  static const double w16 = 1.1826; // Post-lapse retrievability effect
+  static const double w17 = 0.2438; // Short-term stability base
+  static const double w18 = 0.0000; // Short-term stability modifier
+  static const double w19 = 0.0910; // Short-term stability decay
+  static const double w20 = 0.4217; // Forgetting curve decay
 
   static const double defaultRetention = 0.9;
-  static const int defaultMaxInterval = 365;
   static double get factor => pow(0.9, 1 / -w20) - 1;
 
-  // Instance variables
-  final double requestRetention;
-  final int maximumInterval;
-  final bool enableFuzz;
-
-  // Constructor
-  FSRSAlgorithm({
-    this.requestRetention = defaultRetention,
-    this.maximumInterval = defaultMaxInterval,
-    this.enableFuzz = true,
-  }) {
-    assert(requestRetention > 0 && requestRetention < 1);
-  }
-
-  /// Forgetting curve formula
+  // Forgetting curve formula
   static double forgettingCurve(double elapsedDays, double stability) {
     return pow(1 + factor * elapsedDays / stability, -w20).toDouble();
   }
 
-  /// Calculate next interval using official FSRS formula
-  static double calculateNextInterval(
-      double stability, double requestRetention) {
-    double newInterval =
-        stability / factor * (pow(requestRetention, 1 / -w20) - 1);
-    return newInterval.clamp(1.0, defaultMaxInterval.toDouble());
+  // Next interval formula
+  double calculateNextInterval(double stability) {
+    return stability / factor * (pow(defaultRetention, 1 / -w20) - 1);
   }
 
-  /// Apply fuzz to interval (official FSRS implementation)
+  // Apply fuzzing to the interval
   static double applyFuzz(double interval, bool enableFuzz, int entSeq) {
     if (!enableFuzz || interval < 2.5) return interval;
 
@@ -69,26 +51,26 @@ class FSRSAlgorithm {
     return interval * multiplier;
   }
 
-  /// Constrain difficulty to 1-10 range (official FSRS)
+  // Constrain difficulty to 1-10 range
   static double constrainDifficulty(double difficulty) {
     return difficulty.clamp(1.0, 10.0);
   }
 
-  /// Initialize difficulty for a rating (official FSRS)
+  // Initialize difficulty
   static double initDifficulty(String rating) {
     int ratingValue = _getRatingValue(rating);
     double difficulty = w4 - exp(w5 * (ratingValue - 1)) + 1;
     return constrainDifficulty(difficulty);
   }
 
-  /// Initialize stability for a rating (official FSRS)
+  // Initialize stability
   static double initStability(String rating) {
     int ratingValue = _getRatingValue(rating);
     double stability = _getWeightForRating(ratingValue);
     return max(stability, 0.1);
   }
 
-  /// Get weight for rating (w0 for Again, w1 for Hard, etc.)
+  // Get weight for rating
   static double _getWeightForRating(int rating) {
     switch (rating) {
       case 1:
@@ -100,11 +82,11 @@ class FSRSAlgorithm {
       case 4:
         return w3; // Easy
       default:
-        return w2; // Default to Good
+        return w2;
     }
   }
 
-  /// Convert rating string to integer value
+  // Convert rating string to integer value
   static int _getRatingValue(String rating) {
     switch (rating.toLowerCase()) {
       case 'again':
@@ -116,124 +98,171 @@ class FSRSAlgorithm {
       case 'easy':
         return 4;
       default:
-        return 3; // Default to Good
+        return 3;
     }
   }
 
-  /// Calculate next difficulty (official FSRS)
+  // Calculate next difficulty
   static double nextDifficulty(double currentDifficulty, String rating) {
     int ratingValue = _getRatingValue(rating);
     double deltaD = -w6 * (ratingValue - 3);
-    double nextD =
-        currentDifficulty + _linearDamping(deltaD, currentDifficulty);
+    double nextD = currentDifficulty + _linearDamping(deltaD, currentDifficulty);
     return constrainDifficulty(_meanReversion(initDifficulty("easy"), nextD));
   }
 
-  /// Linear damping for difficulty changes (official FSRS)
+  // Linear damping for difficulty changes
   static double _linearDamping(double deltaD, double oldD) {
     return deltaD * (10 - oldD) / 9;
   }
 
-  /// Mean reversion for difficulty (official FSRS)
+  // Mean reversion for difficulty
   static double _meanReversion(double init, double current) {
     return w7 * init + (1 - w7) * current;
   }
 
-  /// Calculate next recall stability for successful reviews (official FSRS)
-  static double nextRecallStability(double difficulty, double stability,
-      double retrievability, String rating) {
+  // Good recall next stability
+  double nextRecallStability(double difficulty, double stability, double retrievability, String rating) {
     double hardPenalty = rating.toLowerCase() == 'hard' ? w15 : 1;
     double easyBonus = rating.toLowerCase() == 'easy' ? w16 : 1;
-
     double stabilityInc = exp(w8) *
         (11 - difficulty) *
         pow(stability, -w9) *
         (exp((1 - retrievability) * w10) - 1) *
         hardPenalty *
         easyBonus;
-
-    return (stability * (1 + stabilityInc)).clamp(0.1, double.infinity);
+    double newStability = stability * (1 + stabilityInc);
+    return newStability.clamp(0.1, double.infinity);
   }
 
-  /// Calculate next forget stability for failed reviews (official FSRS)
-  static double nextForgetStability(
-      double difficulty, double stability, double retrievability) {
+  // Again recall next stability
+  static double nextForgetStability(double difficulty, double stability, double retrievability) {
     double sMin = stability / exp(w17 * w18);
-
     double newStability = w11 *
         pow(difficulty, -w12) *
         (pow(stability + 1, w13) - 1) *
         exp((1 - retrievability) * w14);
-
     return min(newStability, sMin).clamp(0.1, double.infinity);
   }
 
-  /// Calculate next short-term stability for learning cards (official FSRS)
+  // Learning to review card stability
   static double nextShortTermStability(double stability, String rating) {
     int ratingValue = _getRatingValue(rating);
-    double sinc = exp(w17 * (ratingValue - 3 + w18)) * pow(stability, -w19);
+
+    double ratingOffset = (ratingValue - 3).toDouble();
+    double exponent = w17 * (ratingOffset + w18);
+    double baseMultiplier = exp(exponent);
+
+    double stabilityDecay = pow(stability, -w19).toDouble();
+    double sinc = baseMultiplier * stabilityDecay;
 
     if (ratingValue >= 3) {
-      sinc = max(sinc, 1);
+      sinc = max(sinc, 1.0);
+      if (ratingValue == 4) {
+        sinc *= 1.05;
+      }
     }
-
-    return (stability * sinc).clamp(0.1, double.infinity);
+    else {
+      sinc = max(sinc, 0.6);
+    }
+    double newStability = stability * sinc;
+    double maxGrowthFactor = 2.5;
+    double minStabilityFactor = 0.7;
+    newStability = min(newStability, stability * maxGrowthFactor);
+    newStability = max(newStability, stability * minStabilityFactor);
+    return newStability.clamp(0.1, double.infinity);
   }
 
-  /// Process a review and return updated card state
+  /// Process a review and return updated card
   Map<String, dynamic> processReview({
     required int entSeq,
-    required String rating, // 'again', 'hard', 'good', 'easy'
+    required int type,
+    required int queue,
+    required int left,
+    required String rating,
     required double currentStability,
     required double currentDifficulty,
     required double elapsedDays,
-    required bool isNewCard,
-    required bool isLearningCard,
   }) {
-    double newStability, newDifficulty;
+    bool isNewCard = (type == 0 && queue == 0);
+    bool isLearningCard = (type == 1 || type == 3 || queue == 1 || queue == 3);
+    bool isReviewCard = (type == 2 && queue == 2);
+    bool isGraduating = isLearningCard && left <= 1 && rating.toLowerCase() != 'again';
+    double newStability = currentStability;
+    double newDifficulty = currentDifficulty;
 
     if (isNewCard) {
-      // First review - use initial formulas
+      // Initialize stability and difficulty
       newStability = initStability(rating);
       newDifficulty = initDifficulty(rating);
-    } else if (isLearningCard) {
-      // Learning card - use short-term stability
-      newStability = nextShortTermStability(currentStability, rating);
+    } else if (isLearningCard && rating.toLowerCase() == 'again') {
+      newStability = w0;
+    }else if (isGraduating) {
       newDifficulty = nextDifficulty(currentDifficulty, rating);
-    } else {
-      // Review card - calculate retrievability and update
+      newStability = nextShortTermStability(currentStability, rating);
+      // Simulate reviews so that Good interval is always > 1 day
+      if (rating.toLowerCase() == 'good') {
+        double interval = calculateNextInterval(newStability);
+        if (interval < 1.0) {
+          double tempStability = newStability;
+          double tempDifficulty = newDifficulty;
+          double simulatedElapsed = interval;
+          while (interval < 1.0) {
+            double retrievability = forgettingCurve(simulatedElapsed, tempStability);
+            tempDifficulty = nextDifficulty(tempDifficulty, "good");
+            tempStability = nextRecallStability(tempDifficulty, tempStability, retrievability, "good");
+            interval = calculateNextInterval(tempStability);
+            simulatedElapsed = interval;
+            debugPrint('Simulated review:'
+              ' retrievability=${retrievability.toStringAsFixed(2)},'
+              ' stability=${tempStability.toStringAsFixed(2)}'
+            );
+          }
+          newStability = tempStability;
+          newDifficulty = tempDifficulty;
+        }
+      }
+    }
+    else if (isReviewCard) {
       double retrievability = forgettingCurve(elapsedDays, currentStability);
       newDifficulty = nextDifficulty(currentDifficulty, rating);
-
       if (rating.toLowerCase() == 'again') {
-        // Failed review
         newStability = nextForgetStability(
             currentDifficulty, currentStability, retrievability);
-      } else {
-        // Successful review
+      }
+      else {
         newStability = nextRecallStability(
             currentDifficulty, currentStability, retrievability, rating);
       }
     }
 
     // Calculate next review interval
-    double nextInterval = calculateNextInterval(newStability, requestRetention);
-    nextInterval = applyFuzz(nextInterval, enableFuzz, entSeq);
-
-    // For "Again" responses, always use 10 minutes
-    if (rating.toLowerCase() == 'again') {
-      nextInterval = 10.0 / (60 * 24); // 10 minutes in days
+    double nextInterval;
+    // Learning cards use fixed intervals
+    if ((isLearningCard || isNewCard) && !isGraduating) {
+      if (rating.toLowerCase() == 'again') {
+        nextInterval = 10.0 / (60 * 24); // 10 minutes
+      }
+      else {
+        nextInterval = 30.0 / (60 * 24); // 30 minutes
+      }
+    }
+    // "Again" responses use relearning interval
+    else if (rating.toLowerCase() == 'again') {
+      nextInterval = 10.0 / (60 * 24); // 10 minutes
+    }
+    // Graduating cards use calculated interval
+    else if (isGraduating) {
+      nextInterval = calculateNextInterval(newStability);
+    }
+    // Default
+    else {
+      nextInterval = calculateNextInterval(newStability);
     }
 
-    // Calculate current retrievability for reference
+    // Calculate retrievability for reference
     double currentRetrievability = isNewCard || isLearningCard
         ? 1.0
         : forgettingCurve(elapsedDays, currentStability);
-
-    debugPrint(
-        'FSRS Review: Rating=$rating, S=${newStability.toStringAsFixed(2)}, '
-        'D=${newDifficulty.toStringAsFixed(2)}, R=${currentRetrievability.toStringAsFixed(3)}, '
-        'Interval=${formatInterval(nextInterval)}');
 
     return {
       'stability': newStability,
@@ -243,29 +272,29 @@ class FSRSAlgorithm {
     };
   }
 
-  /// Preview what intervals would result from each choice
+  // Preview intervals
   Map<String, String> previewIntervals({
     required int entSeq,
+    required int type,
+    required int queue,
+    required int left,
     required double currentStability,
     required double currentDifficulty,
     required double elapsedDays,
-    required bool isNewCard,
-    required bool isLearningCard,
   }) {
     final Map<String, String> previews = {};
-
-    // For each rating, simulate the review
     final ratings = ['again', 'hard', 'good', 'easy'];
 
     for (String rating in ratings) {
       final result = processReview(
         entSeq: entSeq,
+        type: type,
+        queue: queue,
+        left: left,
         rating: rating,
         currentStability: currentStability,
         currentDifficulty: currentDifficulty,
         elapsedDays: elapsedDays,
-        isNewCard: isNewCard,
-        isLearningCard: isLearningCard,
       );
 
       double interval = result['interval'];
@@ -275,18 +304,18 @@ class FSRSAlgorithm {
     return previews;
   }
 
-  /// Format interval into human-readable string
+  // Format intervals
   static String formatInterval(double days) {
     if (days < 1) {
       return '${(days * 24 * 60).toStringAsFixed(0)} mins';
     } else if (days < 30) {
-      return '${days.toStringAsFixed(1)} days';
+      return '${days.toStringAsFixed(0)} days';
     } else if (days < 365) {
       double months = days / 30;
-      return '${months.toStringAsFixed(1)} months';
+      return '${months.toStringAsFixed(0)} months';
     } else {
       double years = days / 365;
-      return '${years.toStringAsFixed(1)} years';
+      return '${years.toStringAsFixed(0)} years';
     }
   }
 }

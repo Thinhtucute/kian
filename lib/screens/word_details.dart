@@ -102,7 +102,7 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
         ));
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Word already in your flashcards'),
+          content: Text('Bi loi cc j do r'),
           backgroundColor: Colors.amber,
         ));
       }

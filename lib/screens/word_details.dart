@@ -17,7 +17,6 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _meanings = [];
   List<Map<String, dynamic>> _examples = [];
-  List<Map<String, dynamic>> _partsOfSpeech = [];
 
   @override
   void initState() {
@@ -29,17 +28,14 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Load all data concurrently for better performance
       final results = await Future.wait([
         _getMeanings(widget.entry['ent_seq']),
         _getExampleSentences(widget.entry['ent_seq']),
-        _getPartOfSpeech(widget.entry['ent_seq']),
       ]);
 
       setState(() {
         _meanings = results[0];
         _examples = results[1];
-        _partsOfSpeech = results[2];
         _isLoading = false;
       });
     } catch (e) {
@@ -51,9 +47,10 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
   Future<List<Map<String, dynamic>>> _getMeanings(int entSeq) async {
     final db = await DictionaryHelper.getDatabase();
     return await db.rawQuery("""
-      SELECT s.id, GROUP_CONCAT(g.gloss, '; ') as definitions
+      SELECT s.id, GROUP_CONCAT(DISTINCT g.gloss, '; ') as definitions, GROUP_CONCAT(DISTINCT pos.pos, ', ') as part_of_speech
       FROM sense s
       JOIN gloss g ON s.id = g.sense_id
+      LEFT JOIN part_of_speech pos ON s.id = pos.sense_id
       WHERE s.ent_seq = ?
       GROUP BY s.id
     """, [entSeq]);
@@ -77,39 +74,28 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
   """, [entSeq]);
   }
 
-  Future<List<Map<String, dynamic>>> _getPartOfSpeech(int entSeq) async {
-    final db = await DictionaryHelper.getDatabase();
-    return await db.rawQuery("""
-    SELECT DISTINCT pos.pos
-    FROM sense s
-    JOIN part_of_speech pos ON s.id = pos.sense_id
-    WHERE s.ent_seq = ?
-    ORDER BY pos.pos
-  """, [entSeq]);
-  }
-
   Future<void> _addToFlashcards() async {
     try {
       final entSeq = widget.entry['ent_seq'] as int;
       final added = await FSRSHelper.addToFSRS(entSeq);
-      
+
       if (!mounted) return;
-      
+
       if (added) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Word added to flashcards'),
+          content: Text('Word added to review'),
           backgroundColor: Colors.green,
         ));
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Bi loi cc j do r'),
+          content: Text('Word is already added to review'),
           backgroundColor: Colors.amber,
         ));
       }
     } catch (e) {
       debugPrint('Error adding to flashcards: $e');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Could not add word to flashcards'),
+        content: Text('Bi loi cc j do r'),
         backgroundColor: Colors.red,
       ));
     }
@@ -161,7 +147,6 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
         padding: EdgeInsets.all(20.0),
         child: Column(
           children: [
-            // Centered word container
             Center(
               child: widget.entry['keb'] != null
                   ? FuriganaText(
@@ -187,62 +172,25 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
                       ),
                     ),
             ),
-            SizedBox(height: 24),
-            // Parts of speech remain in wrap format
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
-              children: _partsOfSpeech
-                  .map((pos) => _buildPosChip(pos['pos']))
-                  .toList(),
-            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildPosChip(String pos) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: const Color.fromARGB(178, 40, 116, 247),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        pos,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
-        textAlign: TextAlign.center,
-      ),
-    );
-  }
-
   Widget _buildMeaningsAndExamples() {
-    // Group examples by sense_id and take only the first example for each meaning
     Map<int, Map<String, dynamic>> examplesBySense = {};
 
     for (var example in _examples) {
-      // Only filter out completely empty examples
       String japaneseText = example['japanese_text'] ?? '';
       String englishText = example['english_translation'] ?? '';
-
-      if (japaneseText.isEmpty || englishText.isEmpty) {
-        continue;
-      }
-
+      if (japaneseText.isEmpty || englishText.isEmpty) continue;
       int senseId = example['sense_id'];
-      // Only add the example if we don't already have one for this sense
       if (!examplesBySense.containsKey(senseId)) {
         examplesBySense[senseId] = example;
       }
     }
 
-    // Create a list of meanings with their associated examples
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: _meanings.asMap().entries.map((entry) {
@@ -261,14 +209,14 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Meaning number
+                // Meaning number and part of speech
                 Row(
                   children: [
                     Container(
                       width: 28,
                       height: 28,
                       decoration: BoxDecoration(
-                        color: Colors.amber,
+                        color: Color(0xFFF3BB06),
                         shape: BoxShape.circle,
                       ),
                       child: Center(
@@ -282,23 +230,38 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
                       ),
                     ),
                     SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Definition',
-                        style: TextStyle(
-                          color: Colors.amber,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                    if (meaning['part_of_speech'] != null &&
+                        meaning['part_of_speech'].toString().isNotEmpty)
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 2),
+                          child: Text(
+                            (meaning['part_of_speech'] as String)
+                                .split(',')
+                                .map((pos) => pos.trim())
+                                .toSet()
+                                .join(', '),
+                            style: TextStyle(
+                              color: Color(0xFFF3BB06),
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
                 SizedBox(height: 12),
 
                 // Definition text
                 Text(
-                  meaning['definitions'] ?? '',
+                  meaning['definitions'] != null
+                      ? (meaning['definitions'] as String)
+                          .split(';')
+                          .map((d) => d.trim())
+                          .toSet()
+                          .join('; ')
+                      : '',
                   style: TextStyle(
                     fontSize: 20,
                     color: Colors.white,
@@ -321,8 +284,7 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Text(
                           examplesBySense[senseId]!['japanese_text'] ?? '',

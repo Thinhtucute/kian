@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../helpers/fsrs_helper.dart';
+import '../helpers/dictionary_helper.dart';
 import '../widgets/furigana.dart';
 import 'settings_screen.dart';
 
@@ -13,6 +14,8 @@ class LearnScreen extends StatefulWidget {
 
 class LearnScreenState extends State<LearnScreen> {
   List<Map<String, dynamic>> _cards = [];
+  List<Map<String, dynamic>> _meanings = [];
+  List<Map<String, dynamic>> _examples = [];
   bool _isLoading = true;
   bool _showingAnswer = false;
   int _currentCardIndex = 0;
@@ -21,10 +24,10 @@ class LearnScreenState extends State<LearnScreen> {
   int _sessionDuration = 0;
   int _cardsReviewed = 0;
   Map<String, String> _predictedIntervals = {
-    'again': '1 day',
-    'good': '~1 day'
+    'again': '10 mins',
+    'good': 'unknown'
   };
-  
+
   // New session statistics
   int _correctAnswers = 0;
   int _incorrectAnswers = 0;
@@ -60,13 +63,42 @@ class LearnScreenState extends State<LearnScreen> {
     try {
       final cards = await FSRSHelper.getDueCards();
 
+      // Load meanings and examples for the first card (if any)
+      List<Map<String, dynamic>> meanings = [];
+      List<Map<String, dynamic>> examples = [];
+      if (cards.isNotEmpty) {
+        final entSeq = cards[0]['ent_seq'];
+        final db = await DictionaryHelper.getDatabase();
+        meanings = await db.rawQuery("""
+          SELECT s.id, GROUP_CONCAT(g.gloss, '; ') as definitions, GROUP_CONCAT(pos.pos, ', ') as part_of_speech
+          FROM sense s
+          JOIN gloss g ON s.id = g.sense_id
+          LEFT JOIN part_of_speech pos ON s.id = pos.sense_id
+          WHERE s.ent_seq = ?
+          GROUP BY s.id
+        """, [entSeq]);
+        examples = await db.rawQuery("""
+          SELECT 
+            s.id as sense_id,
+            jpn.example_id as example_id,
+            jpn.sentence as japanese_text,
+            eng.sentence as english_translation
+          FROM sense s
+          JOIN example ex ON s.id = ex.sense_id
+          JOIN example_sentence jpn ON ex.id = jpn.example_id AND jpn.lang = 'jpn'
+          JOIN example_sentence eng ON eng.id = jpn.id + 1 AND eng.lang = 'eng'
+          WHERE s.ent_seq = ?
+          ORDER BY s.id
+        """, [entSeq]);
+      }
+
       setState(() {
         _cards = cards;
+        _meanings = meanings;
+        _examples = examples;
         _isLoading = false;
         _currentCardIndex = 0;
         _showingAnswer = false;
-
-        // Start timing this card
         _startTime = DateTime.now().millisecondsSinceEpoch;
       });
     } catch (e) {
@@ -80,14 +112,15 @@ class LearnScreenState extends State<LearnScreen> {
   Future<void> _showAnswer() async {
     final card = _cards[_currentCardIndex];
 
-    // Get predicted intervals for this card BEFORE any review is processed
+    // Default predicted intervals
     try {
       _predictedIntervals =
           await FSRSHelper.getPredictedIntervals(card['ent_seq']);
-      debugPrint('Predicted intervals for card ${card['ent_seq']}: $_predictedIntervals');
+      debugPrint(
+          'Predicted intervals for card ${card['ent_seq']}: $_predictedIntervals');
     } catch (e) {
       debugPrint('Error getting intervals: $e');
-      _predictedIntervals = {'again': '1 day', 'good': '~1 day'};
+      _predictedIntervals = {'again': '10 mins', 'good': 'unknown'};
     }
 
     setState(() {
@@ -99,7 +132,7 @@ class LearnScreenState extends State<LearnScreen> {
     // Calculate time spent on this card
     final now = DateTime.now().millisecondsSinceEpoch;
     final duration = now - _startTime;
-    
+
     // Update session statistics
     _responseTimes.add(duration);
     if (isGood) {
@@ -107,13 +140,15 @@ class LearnScreenState extends State<LearnScreen> {
     } else {
       _incorrectAnswers++;
     }
-    _averageResponseTime = _responseTimes.reduce((a, b) => a + b) / _responseTimes.length;
+    _averageResponseTime =
+        _responseTimes.reduce((a, b) => a + b) / _responseTimes.length;
 
     try {
       final card = _cards[_currentCardIndex];
-      debugPrint('Processing review for card ${card['ent_seq']}: ${isGood ? "Good" : "Again"}');
+      debugPrint(
+          'Processing review for card ${card['ent_seq']}: ${isGood ? "Good" : "Again"}');
       debugPrint('Current predicted intervals: $_predictedIntervals');
-      
+
       await FSRSHelper.processReview(card['ent_seq'], isGood,
           reviewDuration: duration);
 
@@ -129,13 +164,14 @@ class LearnScreenState extends State<LearnScreen> {
 
   void _nextCard() {
     if (_currentCardIndex < _cards.length - 1) {
-      debugPrint('Moving to next card: ${_currentCardIndex + 1} -> ${_currentCardIndex + 2}');
+      debugPrint(
+          'Moving to next card: ${_currentCardIndex + 1} -> ${_currentCardIndex + 2}');
       setState(() {
         _currentCardIndex++;
         _showingAnswer = false;
         _startTime = DateTime.now().millisecondsSinceEpoch;
         // Reset predicted intervals for the new card
-        _predictedIntervals = {'again': '1 day', 'good': '~1 day'};
+        _predictedIntervals = {'again': '10 mins', 'good': 'unknown'};
       });
     } else {
       debugPrint('Finished current card set, checking for more cards');
@@ -155,7 +191,6 @@ class LearnScreenState extends State<LearnScreen> {
       if (cards.isEmpty) {
         // No more 24h due cards
         _sessionTimer?.cancel();
-
         setState(() {
           _cards = [];
           _isLoading = false;
@@ -226,12 +261,14 @@ class LearnScreenState extends State<LearnScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Session Stats', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text('Session Stats',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
                       SizedBox(height: 8),
                       Text('Correct: $_correctAnswers'),
                       Text('Incorrect: $_incorrectAnswers'),
                       Text('Accuracy: ${_calculateAccuracy()}%'),
-                      Text('Avg Time: ${_formatDuration((_averageResponseTime / 1000).round())}'),
+                      Text(
+                          'Avg Time: ${_formatDuration((_averageResponseTime / 1000).round())}'),
                     ],
                   ),
                 ),
@@ -336,53 +373,51 @@ class LearnScreenState extends State<LearnScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Question (always visible)
+                    // Vocab
                     Expanded(
-                      flex: 2,
-                      child: Center(
-                        child: hasKanji
-                            ? FuriganaText(
-                                kanji: card['keb'],
-                                reading:
-                                    _showingAnswer ? card['reb'] ?? '' : '',
-                                kanjiStyle: TextStyle(
-                                  fontSize: 48,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                readingStyle: TextStyle(
-                                  fontSize: 20,
-                                  color: Colors.lightBlueAccent,
-                                  letterSpacing: 1.0,
-                                ),
-                              )
-                            : Text(
-                                card['reb'] ?? '',
-                                style: TextStyle(
-                                  fontSize: 48,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                      flex: _showingAnswer ? 1 : 2,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Center(
+                            child: hasKanji
+                                ? FuriganaText(
+                                    kanji: card['keb'],
+                                    reading: _showingAnswer ? card['reb'] ?? '' : '',
+                                    kanjiStyle: TextStyle(
+                                      fontSize: 48,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    readingStyle: TextStyle(
+                                      fontSize: 20,
+                                      color: Colors.lightBlueAccent,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  )
+                                : Text(
+                                    card['reb'] ?? '',
+                                    style: TextStyle(
+                                      fontSize: 48,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                          ),
+                        ],
                       ),
                     ),
 
                     // Divider between question and answer
                     Divider(color: Colors.grey[700]),
 
-                    // Answer (visible only after tap)
+                    // Answer
                     Expanded(
-                      flex: 2,
+                      flex: _showingAnswer ? 3 : 2,
                       child: Center(
                         child: _showingAnswer
-                            ? Text(
-                                card['gloss'] ?? '',
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  color: Colors.white,
-                                  height: 1.5,
-                                ),
-                                textAlign: TextAlign.center,
+                            ? SingleChildScrollView(
+                                child: _buildMeaningsAndExamples(),
                               )
                             : TextButton(
                                 onPressed: _showAnswer,
@@ -409,7 +444,7 @@ class LearnScreenState extends State<LearnScreen> {
                 children: [
                   // Buttons row
                   Padding(
-                    padding: EdgeInsets.fromLTRB(16, 16, 16, 16),
+                    padding: EdgeInsets.fromLTRB(12, 0, 12, 20),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
@@ -417,20 +452,20 @@ class LearnScreenState extends State<LearnScreen> {
                           'Again',
                           Colors.red[700]!,
                           () => _processRating(false),
-                          _predictedIntervals['again'] ?? '1 day',
+                          _predictedIntervals['again'] ?? '10 mins',
                         ),
                         _buildRatingButton(
                           'Good',
                           Colors.green[700]!,
                           () => _processRating(true),
-                          _predictedIntervals['good'] ?? '~1 day',
+                          _predictedIntervals['good'] ?? 'unknown',
                         ),
                       ],
                     ),
                   ),
                 ],
               )
-            : SizedBox(height: 100), // Placeholder when buttons aren't visible
+            : SizedBox(height: 100),
       ],
     );
   }
@@ -463,6 +498,144 @@ class LearnScreenState extends State<LearnScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMeaningsAndExamples() {
+    Map<int, Map<String, dynamic>> examplesBySense = {};
+
+    for (var example in _examples) {
+      String japaneseText = example['japanese_text'] ?? '';
+      String englishText = example['english_translation'] ?? '';
+      if (japaneseText.isEmpty || englishText.isEmpty) continue;
+      int senseId = example['sense_id'];
+      if (!examplesBySense.containsKey(senseId)) {
+        examplesBySense[senseId] = example;
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: _meanings.asMap().entries.map((entry) {
+        int index = entry.key;
+        Map<String, dynamic> meaning = entry.value;
+        int senseId = meaning['id'];
+
+        return Card(
+          color: const Color.fromARGB(255, 2, 75, 127),
+          margin: EdgeInsets.only(bottom: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: Colors.amber,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${index + 1}',
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    if (meaning['part_of_speech'] != null &&
+                        meaning['part_of_speech'].toString().isNotEmpty)
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 2),
+                          child: Text(
+                            (meaning['part_of_speech'] as String)
+                                .split(',')
+                                .map((pos) => pos.trim())
+                                .toSet()
+                                .join(', '),
+                            style: TextStyle(
+                              color: Colors.amber,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 2,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                Text(
+                  meaning['definitions'] != null
+                      ? (meaning['definitions'] as String)
+                          .split(';')
+                          .map((d) => d.trim())
+                          .toSet()
+                          .join('; ')
+                      : '',
+                  style: TextStyle(
+                    fontSize: 20,
+                    color: Colors.white,
+                    height: 1.5,
+                  ),
+                ),
+                if (examplesBySense.containsKey(senseId)) ...[
+                  SizedBox(height: 16),
+                  Text(
+                    'Example',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.lightBlueAccent,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          examplesBySense[senseId]!['japanese_text'] ?? '',
+                          style: TextStyle(
+                            fontSize: 20,
+                            color: Colors.white,
+                            height: 1.5,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          examplesBySense[senseId]!['english_translation'] ??
+                              '',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.grey[400],
+                            fontStyle: FontStyle.italic,
+                            height: 1.4,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 

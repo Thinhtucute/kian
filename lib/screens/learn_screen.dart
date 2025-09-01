@@ -3,7 +3,10 @@ import 'dart:async';
 import '../helpers/fsrs_helper.dart';
 import '../helpers/dictionary_helper.dart';
 import '../widgets/furigana.dart';
-import 'settings_screen.dart';
+import 'package:provider/provider.dart';
+import '../models/learn_session_model.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 class LearnScreen extends StatefulWidget {
   const LearnScreen({super.key});
@@ -13,26 +16,7 @@ class LearnScreen extends StatefulWidget {
 }
 
 class LearnScreenState extends State<LearnScreen> {
-  List<Map<String, dynamic>> _cards = [];
-  List<Map<String, dynamic>> _meanings = [];
-  List<Map<String, dynamic>> _examples = [];
-  bool _isLoading = true;
-  bool _showingAnswer = false;
-  int _currentCardIndex = 0;
-  int _startTime = 0;
   Timer? _sessionTimer;
-  int _sessionDuration = 0;
-  int _cardsReviewed = 0;
-  Map<String, String> _predictedIntervals = {
-    'again': '10 mins',
-    'good': 'unknown'
-  };
-
-  // New session statistics
-  int _correctAnswers = 0;
-  int _incorrectAnswers = 0;
-  double _averageResponseTime = 0.0;
-  final List<int> _responseTimes = [];
 
   @override
   void initState() {
@@ -49,170 +33,183 @@ class LearnScreenState extends State<LearnScreen> {
 
   void _startTimer() {
     _sessionTimer = Timer.periodic(Duration(seconds: 1), (timer) {
-      setState(() {
-        _sessionDuration++;
-      });
+      final session = Provider.of<LearnSessionModel>(context, listen: false);
+      session.incrementSessionDuration();
     });
   }
 
+  Future<void> _loadMeaningsAndExamples() async {
+    final session = Provider.of<LearnSessionModel>(context, listen: false);
+    if (session.cards.isEmpty) return;
+    final entSeq = session.cards[session.currentCardIndex]['ent_seq'];
+    final db = await DictionaryHelper.getDatabase();
+    final meanings = await db.rawQuery("""
+      SELECT s.id,
+        GROUP_CONCAT(DISTINCT g.gloss) as definitions,
+        GROUP_CONCAT(DISTINCT pos.pos) as part_of_speech
+      FROM sense s
+      JOIN gloss g ON s.id = g.sense_id
+      LEFT JOIN part_of_speech pos ON s.id = pos.sense_id
+      WHERE s.ent_seq = ?
+      GROUP BY s.id
+    """, [entSeq]);
+    final examples = await db.rawQuery("""
+      SELECT 
+        s.id as sense_id,
+        jpn.example_id as example_id,
+        jpn.sentence as japanese_text,
+        eng.sentence as english_translation
+      FROM sense s
+      JOIN example ex ON s.id = ex.sense_id
+      JOIN example_sentence jpn ON ex.id = jpn.example_id AND jpn.lang = 'jpn'
+      JOIN example_sentence eng ON eng.id = jpn.id + 1 AND eng.lang = 'eng'
+      WHERE s.ent_seq = ?
+      ORDER BY s.id
+    """, [entSeq]);
+    session.setMeanings(meanings);
+    session.setExamples(examples);
+  }
+
   Future<void> _loadCards() async {
-    setState(() {
-      _isLoading = true;
-    });
+    final session = Provider.of<LearnSessionModel>(context, listen: false);
+    if (session.cards.isNotEmpty) return; // Don't reload if already loaded
+
+    session.setLoading(true);
 
     try {
       final cards = await FSRSHelper.getDueCards();
-
-      // Load meanings and examples for the first card (if any)
-      List<Map<String, dynamic>> meanings = [];
-      List<Map<String, dynamic>> examples = [];
-      if (cards.isNotEmpty) {
-        final entSeq = cards[0]['ent_seq'];
-        final db = await DictionaryHelper.getDatabase();
-        meanings = await db.rawQuery("""
-          SELECT s.id, GROUP_CONCAT(g.gloss, '; ') as definitions, GROUP_CONCAT(pos.pos, ', ') as part_of_speech
-          FROM sense s
-          JOIN gloss g ON s.id = g.sense_id
-          LEFT JOIN part_of_speech pos ON s.id = pos.sense_id
-          WHERE s.ent_seq = ?
-          GROUP BY s.id
-        """, [entSeq]);
-        examples = await db.rawQuery("""
-          SELECT 
-            s.id as sense_id,
-            jpn.example_id as example_id,
-            jpn.sentence as japanese_text,
-            eng.sentence as english_translation
-          FROM sense s
-          JOIN example ex ON s.id = ex.sense_id
-          JOIN example_sentence jpn ON ex.id = jpn.example_id AND jpn.lang = 'jpn'
-          JOIN example_sentence eng ON eng.id = jpn.id + 1 AND eng.lang = 'eng'
-          WHERE s.ent_seq = ?
-          ORDER BY s.id
-        """, [entSeq]);
-      }
-
-      setState(() {
-        _cards = cards;
-        _meanings = meanings;
-        _examples = examples;
-        _isLoading = false;
-        _currentCardIndex = 0;
-        _showingAnswer = false;
-        _startTime = DateTime.now().millisecondsSinceEpoch;
-      });
+      session.setCards(cards);
+      session.setCurrentCardIndex(0);
+      session.setLoading(false);
+      session.setShowingAnswer(false);
+      session.startTime = DateTime.now().millisecondsSinceEpoch;
+      session.correctAnswers = 0;
+      session.incorrectAnswers = 0;
+      session.averageResponseTime = 0.0;
+      session.responseTimes.clear();
+      session.cardsReviewed = 0;
+      session.setPredictedIntervals({'again': '10 mins', 'good': 'unknown'});
+      await _loadMeaningsAndExamples();
     } catch (e) {
       debugPrint('Error loading cards: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      session.setLoading(false);
+    }
+  }
+
+  Future<void> _exportData() async {
+    final dbPath = '/data/data/com.example.anki2/app_flutter/fsrs.db';
+    final exportDir = await getApplicationDocumentsDirectory();
+    final exportPath = '${exportDir.path}/cards.db';
+
+    final dbFile = File(dbPath);
+    if (await dbFile.exists()) {
+      await dbFile.copy(exportPath);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Database exported to $exportPath'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Database file not found'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   Future<void> _showAnswer() async {
-    final card = _cards[_currentCardIndex];
+    final session = Provider.of<LearnSessionModel>(context, listen: false);
+    final card = session.cards[session.currentCardIndex];
 
-    // Default predicted intervals
     try {
-      _predictedIntervals =
-          await FSRSHelper.getPredictedIntervals(card['ent_seq']);
+      final intervals = await FSRSHelper.getPredictedIntervals(card['ent_seq']);
+      session.setPredictedIntervals(intervals);
       debugPrint(
-          'Predicted intervals for card ${card['ent_seq']}: $_predictedIntervals');
+          'Predicted intervals for card ${card['ent_seq']}: ${session.predictedIntervals}');
     } catch (e) {
       debugPrint('Error getting intervals: $e');
-      _predictedIntervals = {'again': '10 mins', 'good': 'unknown'};
+      session.setPredictedIntervals({'again': '10 mins', 'good': 'unknown'});
     }
 
-    setState(() {
-      _showingAnswer = true;
-    });
+    session.setShowingAnswer(true);
   }
 
   Future<void> _processRating(bool isGood) async {
-    // Calculate time spent on this card
+    final session = Provider.of<LearnSessionModel>(context, listen: false);
     final now = DateTime.now().millisecondsSinceEpoch;
-    final duration = now - _startTime;
+    final duration = now - session.startTime;
 
-    // Update session statistics
-    _responseTimes.add(duration);
+    session.responseTimes.add(duration);
     if (isGood) {
-      _correctAnswers++;
+      session.correctAnswers++;
     } else {
-      _incorrectAnswers++;
+      session.incorrectAnswers++;
     }
-    _averageResponseTime =
-        _responseTimes.reduce((a, b) => a + b) / _responseTimes.length;
+    session.averageResponseTime =
+        session.responseTimes.reduce((a, b) => a + b) /
+            session.responseTimes.length;
 
     try {
-      final card = _cards[_currentCardIndex];
+      final card = session.cards[session.currentCardIndex];
       debugPrint(
           'Processing review for card ${card['ent_seq']}: ${isGood ? "Good" : "Again"}');
-      debugPrint('Current predicted intervals: $_predictedIntervals');
+      debugPrint('Current predicted intervals: ${session.predictedIntervals}');
 
       await FSRSHelper.processReview(card['ent_seq'], isGood,
           reviewDuration: duration);
 
-      setState(() {
-        _cardsReviewed++;
-      });
-
-      _nextCard();
+      session.cardsReviewed++;
+      await _nextCard();
     } catch (e) {
       debugPrint('Error processing review: $e');
     }
   }
 
-  void _nextCard() {
-    if (_currentCardIndex < _cards.length - 1) {
+  Future<void> _nextCard() async {
+    final session = Provider.of<LearnSessionModel>(context, listen: false);
+    if (session.currentCardIndex < session.cards.length - 1) {
       debugPrint(
-          'Moving to next card: ${_currentCardIndex + 1} -> ${_currentCardIndex + 2}');
-      setState(() {
-        _currentCardIndex++;
-        _showingAnswer = false;
-        _startTime = DateTime.now().millisecondsSinceEpoch;
-        // Reset predicted intervals for the new card
-        _predictedIntervals = {'again': '10 mins', 'good': 'unknown'};
-      });
+          'Moving to next card: ${session.currentCardIndex + 1} -> ${session.currentCardIndex + 2}');
+      session.setCurrentCardIndex(session.currentCardIndex + 1);
+      session.setShowingAnswer(false);
+      session.startTime = DateTime.now().millisecondsSinceEpoch;
+      session.setPredictedIntervals({'again': '10 mins', 'good': 'unknown'});
+      await _loadMeaningsAndExamples();
     } else {
       debugPrint('Finished current card set, checking for more cards');
-      _finishReview();
+      await _finishReview();
     }
   }
 
   Future<void> _finishReview() async {
-    setState(() {
-      _isLoading = true;
-    });
+    final session = Provider.of<LearnSessionModel>(context, listen: false);
+    session.setLoading(true);
 
     try {
       final cards = await FSRSHelper.getDueCards();
 
       if (!mounted) return;
       if (cards.isEmpty) {
-        // No more 24h due cards
         _sessionTimer?.cancel();
-        setState(() {
-          _cards = [];
-          _isLoading = false;
-        });
+        session.setCards([]);
+        session.setLoading(false);
       } else {
-        // 24 hours due cards available
-        setState(() {
-          _cards = cards;
-          _isLoading = false;
-          _currentCardIndex = 0;
-          _showingAnswer = false;
-          _startTime = DateTime.now().millisecondsSinceEpoch;
-        });
+        session.setCards(cards);
+        session.setCurrentCardIndex(0);
+        session.setLoading(false);
+        session.setShowingAnswer(false);
+        session.startTime = DateTime.now().millisecondsSinceEpoch;
       }
     } catch (e) {
       debugPrint('Error checking for more cards: $e');
-      setState(() {
-        _isLoading = false;
-        _cards = [];
-      });
+      session.setLoading(false);
+      session.setCards([]);
 
-      // Show error completion dialog
       _sessionTimer?.cancel();
       showDialog(
         context: context,
@@ -220,7 +217,7 @@ class LearnScreenState extends State<LearnScreen> {
           return AlertDialog(
             title: Text('Review Session Complete'),
             content: Text(
-                'You reviewed $_cardsReviewed cards in ${_formatDuration(_sessionDuration)}'),
+                'You reviewed ${session.cardsReviewed} cards in ${_formatDuration(session.sessionDuration)}'),
             actions: <Widget>[
               TextButton(
                 child: Text('Close'),
@@ -243,64 +240,61 @@ class LearnScreenState extends State<LearnScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 16, 20, 63),
-      appBar: AppBar(
-        title: Text('Review', style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color.fromARGB(255, 9, 12, 43),
-        iconTheme: IconThemeData(color: Colors.white),
-        actions: [
-          // Session statistics
-          if (_cardsReviewed > 0)
-            PopupMenuButton<String>(
-              icon: Icon(Icons.analytics, color: Colors.white),
-              onSelected: (value) {},
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  enabled: false,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Session Stats',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                      SizedBox(height: 8),
-                      Text('Correct: $_correctAnswers'),
-                      Text('Incorrect: $_incorrectAnswers'),
-                      Text('Accuracy: ${_calculateAccuracy()}%'),
-                      Text(
-                          'Avg Time: ${_formatDuration((_averageResponseTime / 1000).round())}'),
-                    ],
+    return Consumer<LearnSessionModel>(
+      builder: (context, session, child) {
+        return Scaffold(
+          backgroundColor: const Color.fromARGB(255, 16, 20, 63),
+          appBar: AppBar(
+            title: Text('Review', style: TextStyle(color: Colors.white)),
+            backgroundColor: const Color.fromARGB(255, 9, 12, 43),
+            iconTheme: IconThemeData(color: Colors.white),
+            actions: [
+              if (session.cardsReviewed > 0)
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.analytics, color: Colors.white),
+                  onSelected: (value) {},
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      enabled: false,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Session Stats',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          SizedBox(height: 8),
+                          Text('Correct: ${session.correctAnswers}'),
+                          Text('Incorrect: ${session.incorrectAnswers}'),
+                          Text('Accuracy: ${_calculateAccuracy(session)}%'),
+                          Text(
+                              'Avg Time: ${_formatDuration((session.averageResponseTime / 1000).round())}'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              Center(
+                child: Padding(
+                  padding: EdgeInsets.only(right: 16.0),
+                  child: Text(
+                    _formatDuration(session.sessionDuration),
+                    style: TextStyle(color: Colors.white),
                   ),
                 ),
-              ],
-            ),
-          // Timer display
-          Center(
-            child: Padding(
-              padding: EdgeInsets.only(right: 16.0),
-              child: Text(
-                _formatDuration(_sessionDuration),
-                style: TextStyle(color: Colors.white),
               ),
-            ),
+              IconButton(
+                icon: Icon(Icons.upload_file),
+                tooltip: 'Export',
+                onPressed: _exportData,
+              ),
+            ],
           ),
-          // Settings icon
-          IconButton(
-            icon: Icon(Icons.settings, color: Colors.white),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => SettingsScreen()),
-              );
-            },
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator())
-          : _cards.isEmpty
-              ? _buildNoCardsView()
-              : _buildReviewArea(),
+          body: session.isLoading
+              ? Center(child: CircularProgressIndicator())
+              : session.cards.isEmpty
+                  ? _buildNoCardsView()
+                  : _buildReviewArea(session),
+        );
+      },
     );
   }
 
@@ -336,29 +330,24 @@ class LearnScreenState extends State<LearnScreen> {
     );
   }
 
-  Widget _buildReviewArea() {
-    final card = _cards[_currentCardIndex];
+  Widget _buildReviewArea(LearnSessionModel session) {
+    final card = session.cards[session.currentCardIndex];
     final hasKanji = card['keb'] != null;
 
     return Column(
       children: [
-        // Progress indicator
         LinearProgressIndicator(
-          value: (_currentCardIndex + 1) / _cards.length,
+          value: (session.currentCardIndex + 1) / session.cards.length,
           backgroundColor: Colors.grey[800],
           valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
         ),
-
-        // Card count
         Padding(
           padding: EdgeInsets.all(16),
           child: Text(
-            '${_currentCardIndex + 1} / ${_cards.length}',
+            '${session.currentCardIndex + 1} / ${session.cards.length}',
             style: TextStyle(color: Colors.grey[400]),
           ),
         ),
-
-        // Card content
         Expanded(
           child: Padding(
             padding: EdgeInsets.all(16),
@@ -373,9 +362,8 @@ class LearnScreenState extends State<LearnScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Vocab
                     Expanded(
-                      flex: _showingAnswer ? 1 : 2,
+                      flex: session.showingAnswer ? 1 : 2,
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -383,7 +371,9 @@ class LearnScreenState extends State<LearnScreen> {
                             child: hasKanji
                                 ? FuriganaText(
                                     kanji: card['keb'],
-                                    reading: _showingAnswer ? card['reb'] ?? '' : '',
+                                    reading: session.showingAnswer
+                                        ? card['reb'] ?? ''
+                                        : '',
                                     kanjiStyle: TextStyle(
                                       fontSize: 48,
                                       color: Colors.white,
@@ -407,17 +397,13 @@ class LearnScreenState extends State<LearnScreen> {
                         ],
                       ),
                     ),
-
-                    // Divider between question and answer
                     Divider(color: Colors.grey[700]),
-
-                    // Answer
                     Expanded(
-                      flex: _showingAnswer ? 3 : 2,
+                      flex: session.showingAnswer ? 3 : 2,
                       child: Center(
-                        child: _showingAnswer
+                        child: session.showingAnswer
                             ? SingleChildScrollView(
-                                child: _buildMeaningsAndExamples(),
+                                child: _buildMeaningsAndExamples(session),
                               )
                             : TextButton(
                                 onPressed: _showAnswer,
@@ -437,12 +423,9 @@ class LearnScreenState extends State<LearnScreen> {
             ),
           ),
         ),
-
-        // Rating buttons
-        _showingAnswer
+        session.showingAnswer
             ? Column(
                 children: [
-                  // Buttons row
                   Padding(
                     padding: EdgeInsets.fromLTRB(12, 0, 12, 20),
                     child: Row(
@@ -452,13 +435,13 @@ class LearnScreenState extends State<LearnScreen> {
                           'Again',
                           Colors.red[700]!,
                           () => _processRating(false),
-                          _predictedIntervals['again'] ?? '10 mins',
+                          session.predictedIntervals['again'] ?? '10 mins',
                         ),
                         _buildRatingButton(
                           'Good',
                           Colors.green[700]!,
                           () => _processRating(true),
-                          _predictedIntervals['good'] ?? 'unknown',
+                          session.predictedIntervals['good'] ?? 'unknown',
                         ),
                       ],
                     ),
@@ -501,10 +484,10 @@ class LearnScreenState extends State<LearnScreen> {
     );
   }
 
-  Widget _buildMeaningsAndExamples() {
+  Widget _buildMeaningsAndExamples(LearnSessionModel session) {
     Map<int, Map<String, dynamic>> examplesBySense = {};
 
-    for (var example in _examples) {
+    for (var example in session.examples) {
       String japaneseText = example['japanese_text'] ?? '';
       String englishText = example['english_translation'] ?? '';
       if (japaneseText.isEmpty || englishText.isEmpty) continue;
@@ -516,7 +499,7 @@ class LearnScreenState extends State<LearnScreen> {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: _meanings.asMap().entries.map((entry) {
+      children: session.meanings.asMap().entries.map((entry) {
         int index = entry.key;
         Map<String, dynamic> meaning = entry.value;
         int senseId = meaning['id'];
@@ -559,6 +542,7 @@ class LearnScreenState extends State<LearnScreen> {
                           padding: EdgeInsets.symmetric(vertical: 2),
                           child: Text(
                             (meaning['part_of_speech'] as String)
+                                .replaceAll(',', ', ')
                                 .split(',')
                                 .map((pos) => pos.trim())
                                 .toSet()
@@ -579,6 +563,7 @@ class LearnScreenState extends State<LearnScreen> {
                 Text(
                   meaning['definitions'] != null
                       ? (meaning['definitions'] as String)
+                          .replaceAll(',', '; ')
                           .split(';')
                           .map((d) => d.trim())
                           .toSet()
@@ -639,9 +624,9 @@ class LearnScreenState extends State<LearnScreen> {
     );
   }
 
-  double _calculateAccuracy() {
-    final total = _correctAnswers + _incorrectAnswers;
+  double _calculateAccuracy(LearnSessionModel session) {
+    final total = session.correctAnswers + session.incorrectAnswers;
     if (total == 0) return 0.0;
-    return ((_correctAnswers / total) * 100).roundToDouble();
+    return ((session.correctAnswers / total) * 100).roundToDouble();
   }
 }

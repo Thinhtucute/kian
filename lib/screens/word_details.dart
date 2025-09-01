@@ -47,7 +47,9 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
   Future<List<Map<String, dynamic>>> _getMeanings(int entSeq) async {
     final db = await DictionaryHelper.getDatabase();
     return await db.rawQuery("""
-      SELECT s.id, GROUP_CONCAT(DISTINCT g.gloss, '; ') as definitions, GROUP_CONCAT(DISTINCT pos.pos, ', ') as part_of_speech
+      SELECT s.id,
+        GROUP_CONCAT(DISTINCT g.gloss) as definitions,
+        GROUP_CONCAT(DISTINCT pos.pos) as part_of_speech
       FROM sense s
       JOIN gloss g ON s.id = g.sense_id
       LEFT JOIN part_of_speech pos ON s.id = pos.sense_id
@@ -237,6 +239,7 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
                           padding: EdgeInsets.symmetric(vertical: 2),
                           child: Text(
                             (meaning['part_of_speech'] as String)
+                                .replaceAll(',', ', ')
                                 .split(',')
                                 .map((pos) => pos.trim())
                                 .toSet()
@@ -257,10 +260,12 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
                 Text(
                   meaning['definitions'] != null
                       ? (meaning['definitions'] as String)
+                          .replaceAll(',', '; ')
                           .split(';')
                           .map((d) => d.trim())
                           .toSet()
                           .join('; ')
+                          
                       : '',
                   style: TextStyle(
                     fontSize: 20,

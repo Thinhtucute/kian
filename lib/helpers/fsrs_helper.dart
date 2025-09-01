@@ -15,7 +15,7 @@ class FSRSHelper {
 
   // Delegate methods
   static Future<bool> addToFSRS(int entSeq) => FSRSCardService.addCard(entSeq);
-  static Future<List<Map<String, dynamic>>> getDueCards({int limit = 20}) => 
+  static Future<List<Map<String, dynamic>>> getDueCards({int limit = 999999}) => 
       FSRSCardService.getDueCards(limit: limit);
   static Future<Map<String, dynamic>> processReview(int entSeq, bool isGood, {int? reviewDuration}) => 
       FSRSReviewService.processReview(entSeq, isGood, reviewDuration: reviewDuration);

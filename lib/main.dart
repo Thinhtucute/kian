@@ -2,37 +2,47 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
 import 'screens/learn_screen.dart';
 import 'screens/dictionary_screen.dart';
 import 'helpers/dictionary_helper.dart';
 import 'helpers/fsrs/fsrs_database.dart';
+import 'models/learn_session_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   try {
     debugPrint("Starting FFI support initialization...");
     await DictionaryHelper.initialize();
-    
+
     await DictionaryHelper.debugTableStructure();
     final fts5Works = await DictionaryHelper.testFTS5Functionality();
-    debugPrint('FTS5 functionality is ${fts5Works ? 'available' : 'not available'}.');
-    
+    debugPrint(
+        'FTS5 functionality is ${fts5Works ? 'available' : 'not available'}.');
+
     debugPrint("Initializing database...");
     await FSRSDatabase.initialize();
-    
+
     debugPrint("Database paths:");
     final docDir = await getApplicationDocumentsDirectory();
     debugPrint("Documents directory: ${docDir.path}");
     final fsrsPath = join(docDir.path, "fsrs.db");
     final dictPath = join(docDir.path, "jmdict_fts5.db");
-    debugPrint("FSRS database path: $fsrsPath (exists: ${await File(fsrsPath).exists()})");
-    debugPrint("Dictionary path: $dictPath (exists: ${await File(dictPath).exists()})");
+    debugPrint(
+        "FSRS database path: $fsrsPath (exists: ${await File(fsrsPath).exists()})");
+    debugPrint(
+        "Dictionary path: $dictPath (exists: ${await File(dictPath).exists()})");
   } catch (e) {
     debugPrint("Error during initialization: $e");
   }
   await FSRSDatabase.importBundledDatabase();
-  runApp(MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => LearnSessionModel(),
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {

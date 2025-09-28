@@ -44,17 +44,37 @@ class FSRSCardService {
     final now = DateTime.now().millisecondsSinceEpoch ~/
         (1000 * 60 * 60 * 24); // Convert to days
 
-    final allCards = await db.query('cards',
-        where: 'due <= ?',
-        whereArgs: [now],
+    List<Map<String, dynamic>> reviews = [];
+    // Review cards
+    reviews = await db.query('cards',
+        where: 'due < ? AND type = ?',
+        whereArgs: [now, 2],
         orderBy: 'due ASC',
         limit: limit);
+    
+    // Relearning cards
+    if (reviews.isEmpty) {
+      reviews = await db.query('cards',
+        where: 'due < ? AND left = ?',
+        whereArgs: [now, 1],
+        orderBy: 'due ASC',
+        limit: limit);
+    }
 
-    if (allCards.isEmpty) return [];
+    // Fallback
+    if (reviews.isEmpty) {
+      reviews = await db.query('cards',
+          where: 'due < ?',
+          whereArgs: [now],
+          orderBy: 'due ASC',
+          limit: limit);
+    }
+
+    if (reviews.isEmpty) return [];
 
     // Enrich with dictionary data
     List<Map<String, dynamic>> enrichedCards = [];
-    for (var card in allCards) {
+    for (var card in reviews) {
       final entSeq = card['ent_seq'] as int;
       try {
         final entry = await DictionaryHelper.getEntryById(entSeq);

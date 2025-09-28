@@ -267,8 +267,7 @@ class FSRSReviewService {
     final int currentQueue = (card['queue'] as num?)?.toInt() ?? currentType;
     final int left = (card['left'] as num?)?.toInt() ?? 0;
 
-    debugPrint(
-        'Previewing intervals for ${names[currentType]} card (type=$currentType, queue=$currentQueue/${names[currentQueue]}, left=$left)');
+    debugPrint('Previewing intervals for ${names[currentType]} card (type=$currentType, queue=$currentQueue/${names[currentQueue]}, left=$left)');
 
     return FSRSAlgorithm().previewIntervals(
       entSeq: entSeq,

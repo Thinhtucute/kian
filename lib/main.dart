@@ -10,7 +10,7 @@ import 'helpers/fsrs/fsrs_database.dart';
 import 'models/learn_session_model.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  WidgetsFlutterBinding.ensureInitialized();                
 
   try {
     debugPrint("Starting FFI support initialization...");

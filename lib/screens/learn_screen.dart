@@ -6,7 +6,6 @@ import '../widgets/furigana.dart';
 import 'package:provider/provider.dart';
 import '../models/learn_session_model.dart';
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 
 class LearnScreen extends StatefulWidget {
   const LearnScreen({super.key});
@@ -98,7 +97,7 @@ class LearnScreenState extends State<LearnScreen> {
 
   Future<void> _exportData() async {
     final dbPath = '/data/data/com.example.anki2/app_flutter/fsrs.db';
-    final exportDir = await getApplicationDocumentsDirectory();
+    final exportDir = Directory('/storage/emulated/0/Download/');
     final exportPath = '${exportDir.path}/cards.db';
 
     final dbFile = File(dbPath);
@@ -173,8 +172,7 @@ class LearnScreenState extends State<LearnScreen> {
   Future<void> _nextCard() async {
     final session = Provider.of<LearnSessionModel>(context, listen: false);
     if (session.currentCardIndex < session.cards.length - 1) {
-      debugPrint(
-          'Moving to next card: ${session.currentCardIndex + 1} -> ${session.currentCardIndex + 2}');
+      debugPrint('Moving to next card: ${session.currentCardIndex + 1} -> ${session.currentCardIndex + 2}');
       session.setCurrentCardIndex(session.currentCardIndex + 1);
       session.setShowingAnswer(false);
       session.startTime = DateTime.now().millisecondsSinceEpoch;

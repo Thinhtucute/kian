@@ -21,15 +21,9 @@ A Flutter-based Japanese learning application with spaced repetition system (FSR
 
 ### Technical Features
 - **SQLite Database**: Local storage with FFI support
+- **Supabase Backend**: Cloud FSRS progress storage
 - **Dark Theme**: Modern dark UI design
 - **Cross-Platform**: Supports Android, iOS, Windows, macOS, and Linux
-
-## Recent Updates
-
-### Session Statistics Enhancement
-- Added real-time session analytics accessible via the analytics icon in the app bar
-- Tracks correct/incorrect answers, accuracy percentage, and average response time
-- Provides visual feedback on learning progress during review sessions
 
 ## Getting Started
 

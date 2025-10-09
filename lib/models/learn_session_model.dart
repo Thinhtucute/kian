@@ -47,24 +47,37 @@ class LearnSessionModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Delay notification until after build completes
   void setLoading(bool value) {
-    isLoading = value;
-    notifyListeners();
+    if (isLoading != value) {
+      isLoading = value;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+    }
   }
 
   void setShowingAnswer(bool value) {
-    showingAnswer = value;
-    notifyListeners();
+    if (showingAnswer != value) {
+      showingAnswer = value;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+    }
   }
 
-  void setCards(List<Map<String, dynamic>> newCards) {
+  void loadCards(List<Map<String, dynamic>> newCards) {
     cards = newCards;
+    currentCardIndex = 0;
+    isLoading = false;
     notifyListeners();
   }
 
   void setCurrentCardIndex(int index) {
-    currentCardIndex = index;
-    notifyListeners();
+    if (currentCardIndex != index) {
+      currentCardIndex = index;
+      notifyListeners();
+    }
   }
 
   void setMeanings(List<Map<String, dynamic>> newMeanings) {
@@ -79,6 +92,43 @@ class LearnSessionModel extends ChangeNotifier {
 
   void setPredictedIntervals(Map<String, String> intervals) {
     predictedIntervals = intervals;
+    notifyListeners();
+  }
+
+  // Helper methods
+  // Get current card
+  Map<String, dynamic>? get currentCard {
+    if (cards.isEmpty || currentCardIndex >= cards.length) return null;
+    return cards[currentCardIndex];
+  }
+
+  // Check if there are more cards
+  bool get hasMoreCards => currentCardIndex < cards.length - 1;
+
+  // Move to next card
+  void nextCard() {
+    if (hasMoreCards) {
+      setCurrentCardIndex(currentCardIndex + 1);
+      setShowingAnswer(false);
+    }
+  }
+
+  // Record answer
+  void recordAnswer(bool isCorrect, int responseTimeMs) {
+    if (isCorrect) {
+      correctAnswers++;
+    } else {
+      incorrectAnswers++;
+    }
+    
+    responseTimes.add(responseTimeMs);
+    cardsReviewed++;
+    
+    // Calculate average response time
+    if (responseTimes.isNotEmpty) {
+      averageResponseTime = responseTimes.reduce((a, b) => a + b) / responseTimes.length;
+    }
+    
     notifyListeners();
   }
 }

@@ -16,6 +16,7 @@ class LearnScreen extends StatefulWidget {
 
 class LearnScreenState extends State<LearnScreen> {
   Timer? _sessionTimer;
+  bool _isSyncing = false;
 
   @override
   void initState() {
@@ -35,6 +36,83 @@ class LearnScreenState extends State<LearnScreen> {
       final session = Provider.of<LearnSessionModel>(context, listen: false);
       session.incrementSessionDuration();
     });
+  }
+
+  Future<void> _performSync() async {
+    if (_isSyncing) return;
+
+    setState(() {
+      _isSyncing = true;
+    });
+
+    try {
+      // Sync message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🔄 Syncing...'),
+          duration: Duration(seconds: 30),
+        ),
+      );
+
+      // Upload to cloud
+      final uploadResult = await FSRSHelper.syncToSupabase();
+
+      // Download from cloud
+      final downloadResult = await FSRSHelper.syncFromSupabase();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      // Show result
+      if (uploadResult['success'] && downloadResult['success']) {
+        final uploaded = uploadResult['synced'] ?? 0;
+        final downloaded = downloadResult['synced'] ?? 0;
+
+        String message = '✅ Sync complete';
+        if (uploaded > 0 || downloaded > 0) {
+          message += ' (↑$uploaded ↓$downloaded)';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+
+        // Reload cards if new cards available
+        if (downloaded > 0) {
+          await _loadCards();
+        }
+      } else {
+        final error =
+            uploadResult['error'] ?? downloadResult['error'] ?? 'Unknown error';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Sync failed: $error'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Sync error: $e'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadMeaningsAndExamples() async {
@@ -77,7 +155,7 @@ class LearnScreenState extends State<LearnScreen> {
 
     try {
       final cards = await FSRSHelper.getDueCards();
-      session.setCards(cards);
+      session.loadCards(cards);
       session.setCurrentCardIndex(0);
       session.setLoading(false);
       session.setShowingAnswer(false);
@@ -172,7 +250,8 @@ class LearnScreenState extends State<LearnScreen> {
   Future<void> _nextCard() async {
     final session = Provider.of<LearnSessionModel>(context, listen: false);
     if (session.currentCardIndex < session.cards.length - 1) {
-      debugPrint('Moving to next card: ${session.currentCardIndex + 1} -> ${session.currentCardIndex + 2}');
+      debugPrint(
+          'Moving to next card: ${session.currentCardIndex + 1} -> ${session.currentCardIndex + 2}');
       session.setCurrentCardIndex(session.currentCardIndex + 1);
       session.setShowingAnswer(false);
       session.startTime = DateTime.now().millisecondsSinceEpoch;
@@ -194,10 +273,10 @@ class LearnScreenState extends State<LearnScreen> {
       if (!mounted) return;
       if (cards.isEmpty) {
         _sessionTimer?.cancel();
-        session.setCards([]);
+        session.loadCards([]);
         session.setLoading(false);
       } else {
-        session.setCards(cards);
+        session.loadCards(cards);
         session.setCurrentCardIndex(0);
         session.setLoading(false);
         session.setShowingAnswer(false);
@@ -206,7 +285,7 @@ class LearnScreenState extends State<LearnScreen> {
     } catch (e) {
       debugPrint('Error checking for more cards: $e');
       session.setLoading(false);
-      session.setCards([]);
+      session.loadCards([]);
 
       _sessionTimer?.cancel();
       showDialog(
@@ -247,6 +326,7 @@ class LearnScreenState extends State<LearnScreen> {
             backgroundColor: const Color.fromARGB(255, 9, 12, 43),
             iconTheme: IconThemeData(color: Colors.white),
             actions: [
+              // Statistics button
               if (session.cardsReviewed > 0)
                 PopupMenuButton<String>(
                   icon: Icon(Icons.analytics, color: Colors.white),
@@ -270,6 +350,25 @@ class LearnScreenState extends State<LearnScreen> {
                     ),
                   ],
                 ),
+
+              // Sync button
+              IconButton(
+                icon: _isSyncing
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Icon(Icons.sync, color: Colors.white),
+                tooltip: 'Sync',
+                onPressed: _isSyncing ? null : _performSync,
+              ),
+
+              // Local export button
               Center(
                 child: Padding(
                   padding: EdgeInsets.only(right: 16.0),
@@ -383,7 +482,7 @@ class LearnScreenState extends State<LearnScreen> {
                                       letterSpacing: 1.0,
                                     ),
                                   )
-                                : Text(
+                                : SelectableText(
                                     card['reb'] ?? '',
                                     style: TextStyle(
                                       fontSize: 48,
@@ -558,7 +657,7 @@ class LearnScreenState extends State<LearnScreen> {
                   ],
                 ),
                 SizedBox(height: 12),
-                Text(
+                SelectableText(
                   meaning['definitions'] != null
                       ? (meaning['definitions'] as String)
                           .replaceAll(',', '; ')
@@ -575,7 +674,7 @@ class LearnScreenState extends State<LearnScreen> {
                 ),
                 if (examplesBySense.containsKey(senseId)) ...[
                   SizedBox(height: 16),
-                  Text(
+                  SelectableText(
                     'Example',
                     style: TextStyle(
                       fontSize: 18,
@@ -589,7 +688,7 @@ class LearnScreenState extends State<LearnScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Text(
+                        SelectableText(
                           examplesBySense[senseId]!['japanese_text'] ?? '',
                           style: TextStyle(
                             fontSize: 20,
@@ -599,7 +698,7 @@ class LearnScreenState extends State<LearnScreen> {
                           textAlign: TextAlign.center,
                         ),
                         SizedBox(height: 8),
-                        Text(
+                        SelectableText(
                           examplesBySense[senseId]!['english_translation'] ??
                               '',
                           style: TextStyle(

@@ -15,9 +15,9 @@ list(APPEND FLUTTER_TOOL_ENVIRONMENT
   "FLUTTER_ROOT=D:\\hacker\\flutter"
   "FLUTTER_EPHEMERAL_DIR=D:\\hacker\\idk\\anki2\\windows\\flutter\\ephemeral"
   "PROJECT_DIR=D:\\hacker\\idk\\anki2"
-  "FLUTTER_TARGET=D:\\hacker\\idk\\anki2\\lib\\main.dart"
+  "FLUTTER_TARGET=lib\\main.dart"
   "DART_OBFUSCATION=false"
   "TRACK_WIDGET_CREATION=true"
-  "TREE_SHAKE_ICONS=false"
+  "TREE_SHAKE_ICONS=true"
   "PACKAGE_CONFIG=D:\\hacker\\idk\\anki2\\.dart_tool\\package_config.json"
 )

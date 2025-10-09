@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.example.anki2.app-mergeDebugResources-39:/values-large-v4/values-large-v4.xml",
+            "outputFile": "com.example.anki2.app-mergeDebugResources-40:/values-large-v4/values-large-v4.xml",
             "map": [
                 {
                     "source": "C:\\Users\\PC\\.gradle\\caches\\transforms-3\\6ddfe7bc5a026c54878de2bc1391ef46\\transformed\\appcompat-1.1.0\\res\\values-large-v4\\values-large-v4.xml",

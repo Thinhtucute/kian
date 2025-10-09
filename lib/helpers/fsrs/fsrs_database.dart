@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart'; // For importBundledDatabase()
 
 class FSRSDatabase {
   static Database? _database;
@@ -84,6 +84,7 @@ class FSRSDatabase {
     debugPrint('FSRS schema created');
   }
 
+// Import bundled database from assets if not exists in main.dart
   static Future<void> importBundledDatabase() async {
     Directory documentsDirectory = await getApplicationDocumentsDirectory();
     String dbPath = join(documentsDirectory.path, _dbName);

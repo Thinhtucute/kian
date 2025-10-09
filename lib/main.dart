@@ -7,36 +7,51 @@ import 'screens/learn_screen.dart';
 import 'screens/dictionary_screen.dart';
 import 'helpers/dictionary_helper.dart';
 import 'helpers/fsrs/fsrs_database.dart';
+import 'helpers/fsrs_helper.dart';
 import 'models/learn_session_model.dart';
+import 'services/supabase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();                
 
   try {
+    // Initialize Supabase
+    debugPrint("Initializing Supabase...");
+    await SupabaseService.initialize();
+    debugPrint("Success!");
+    
     debugPrint("Starting FFI support initialization...");
     await DictionaryHelper.initialize();
 
     await DictionaryHelper.debugTableStructure();
     final fts5Works = await DictionaryHelper.testFTS5Functionality();
-    debugPrint(
-        'FTS5 functionality is ${fts5Works ? 'available' : 'not available'}.');
+    debugPrint('FTS5 functionality is ${fts5Works ? 'available' : 'not available'}.');
 
-    debugPrint("Initializing database...");
+    debugPrint("Initializing FSRS database...");
     await FSRSDatabase.initialize();
+    
+    // Check for bundled database and import
+    // debugPrint("Checking for bundled FSRS database...");
+    // await FSRSDatabase.importBundledDatabase();
+    
+    debugPrint("Initializing FSRS Helper...");
+    await FSRSHelper.initialize();
+    debugPrint("Success!");
 
-    debugPrint("Database paths:");
+    debugPrint("Database paths: ");
     final docDir = await getApplicationDocumentsDirectory();
     debugPrint("Documents directory: ${docDir.path}");
     final fsrsPath = join(docDir.path, "fsrs.db");
     final dictPath = join(docDir.path, "jmdict_fts5.db");
-    debugPrint(
-        "FSRS database path: $fsrsPath (exists: ${await File(fsrsPath).exists()})");
-    debugPrint(
-        "Dictionary path: $dictPath (exists: ${await File(dictPath).exists()})");
+    debugPrint("FSRS database path: $fsrsPath (exists: ${await File(fsrsPath).exists()})");
+    debugPrint("Dictionary path: $dictPath (exists: ${await File(dictPath).exists()})");
+        
+    debugPrint("✅ All initialization completed");
+    
   } catch (e) {
-    debugPrint("Error during initialization: $e");
+    debugPrint("❌ Error during initialization: $e");
   }
-  await FSRSDatabase.importBundledDatabase();
+  
   runApp(
     ChangeNotifierProvider(
       create: (_) => LearnSessionModel(),
@@ -90,7 +105,37 @@ class MainScreenState extends State<MainScreen> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
             body: Center(
-              child: CircularProgressIndicator(),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Initializing databases...'),
+                ],
+              ),
+            ),
+          );
+        } else if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error, color: Colors.red, size: 48),
+                  SizedBox(height: 16),
+                  Text('Database initialization failed'),
+                  Text('${snapshot.error}'),
+                  SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _databaseFuture = FSRSDatabase.getDatabase();
+                      });
+                    },
+                    child: Text('Retry'),
+                  ),
+                ],
+              ),
             ),
           );
         } else {

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'fsrs_database.dart';
+import 'package:sqflite/sqflite.dart';
 import '../dictionary_helper.dart';
 
 class FSRSCardService {
@@ -37,6 +38,34 @@ class FSRSCardService {
     }
   }
 
+  static Future<Map<String, dynamic>?> getCard(int entSeq) async {
+    final db = await FSRSDatabase.getDatabase();
+    final result = await db.query(
+      'cards',
+      where: 'ent_seq = ?',
+      whereArgs: [entSeq],
+      limit: 1,
+    );
+    return result.isNotEmpty ? result.first : null;
+  }
+
+  static Future<List<Map<String, dynamic>>> getAllCards() async {
+    final db = await FSRSDatabase.getDatabase();
+    return await db.query('cards');
+  }
+
+  static Future<int> getCardCount() async {
+    final db = await FSRSDatabase.getDatabase();
+    final result = await db.rawQuery('SELECT COUNT(*) as count FROM cards');
+    return result.first['count'] as int;
+  }
+
+  static Future<void> upsertCard(Map<String, dynamic> card) async {
+    final db = await FSRSDatabase.getDatabase();
+    await db.insert('cards', card,
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
   // Get cards due for review
   static Future<List<Map<String, dynamic>>> getDueCards(
       {int limit = 20}) async {
@@ -45,29 +74,30 @@ class FSRSCardService {
         (1000 * 60 * 60 * 24); // Convert to days
 
     List<Map<String, dynamic>> reviews = [];
+
     // Review cards
     reviews = await db.query('cards',
         where: 'due < ? AND type = ?',
         whereArgs: [now, 2],
         orderBy: 'due ASC',
         limit: limit);
-    
+    debugPrint('Review cards query returned: ${reviews.length}');
+
     // Relearning cards
     if (reviews.isEmpty) {
       reviews = await db.query('cards',
-        where: 'due < ? AND left = ?',
-        whereArgs: [now, 1],
-        orderBy: 'due ASC',
-        limit: limit);
+          where: 'due < ? AND left = ?',
+          whereArgs: [now, 1],
+          orderBy: 'due ASC',
+          limit: limit);
+      debugPrint('Relearning cards query returned: ${reviews.length}');
     }
 
     // Fallback
     if (reviews.isEmpty) {
       reviews = await db.query('cards',
-          where: 'due < ?',
-          whereArgs: [now],
-          orderBy: 'due ASC',
-          limit: limit);
+          where: 'due < ?', whereArgs: [now], orderBy: 'due ASC', limit: limit);
+      debugPrint('Fallback query returned: ${reviews.length}');
     }
 
     if (reviews.isEmpty) return [];

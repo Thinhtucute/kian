@@ -31,7 +31,7 @@ class FSRSReviewService {
       {int? reviewDuration}) async {
     final db = await FSRSDatabase.getDatabase();
     // Convert to days
-    final now = DateTime.now().millisecondsSinceEpoch / (1000 * 60 * 60 * 24);
+    final now = DateTime.now().millisecondsSinceEpoch / (1000 * 60 * 60 * 24).round();
 
     // Get current card state
     final cards =
@@ -46,7 +46,7 @@ class FSRSReviewService {
     final reps = (card['reps'] as num?)?.toInt() ?? 0;
     final lapses = (card['lapses'] as num?)?.toInt() ?? 0;
     final lastReview = card['last_review'] != null
-        ? (card['last_review'] as num).toDouble()
+        ? (card['last_review'] as num).toInt()
         : null;
     final int currentType = (card['type'] as num?)?.toInt() ?? 0;
     final int currentQueue = (card['queue'] as num?)?.toInt() ?? currentType;
@@ -54,7 +54,7 @@ class FSRSReviewService {
     double elapsedDays;
     if ((lastReview != null) || currentType == 2) {
       // Review
-      elapsedDays = now - (lastReview ?? now);
+      elapsedDays = now - (lastReview ?? now).toDouble();
     }
     else {
       // Learning / Relearning
@@ -195,7 +195,7 @@ class FSRSReviewService {
       debugPrint('Something wrong in Review Service bro');
       nextIntervalDays = 1.0;
     }
-    final newDue = now + nextIntervalDays;
+    final newDue = now + nextIntervalDays.round();
 
     // Debug
     debugPrint('Processing review for entry $entSeq: ${await getVocabForEntry(entSeq)}');

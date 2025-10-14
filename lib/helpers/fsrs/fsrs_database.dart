@@ -31,7 +31,7 @@ class FSRSDatabase {
     try {
       return await openDatabase(
         dbPath,
-        version: 1,
+        version: 3,
         onCreate: dbExists
             ? null
             : (Database db, int version) async {
@@ -53,7 +53,7 @@ class FSRSDatabase {
         await File(dbPath).delete();
         return await openDatabase(
           dbPath,
-          version: 1,
+          version: 3,
           onCreate: (Database db, int version) async {
             await _createTables(db);
           },
@@ -70,8 +70,8 @@ class FSRSDatabase {
         ent_seq INTEGER PRIMARY KEY,
         type INTEGER NOT NULL DEFAULT 0, -- 0: new, 1: learning, 2: review, 3:relearning
         queue INTEGER NOT NULL DEFAULT 0, -- 0: new, 1: learning, 2: review, 3: relearning
-        due INTEGER NOT NULL,
-        last_review INTEGER,
+        due REAL NOT NULL,
+        last_review REAL,
         reps INTEGER NOT NULL DEFAULT 0,
         lapses INTEGER NOT NULL DEFAULT 0,
         left INTEGER NOT NULL DEFAULT 2,

@@ -1,7 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'dictionary/dict_database.dart';
-import 'dictionary/dict_entry.dart';
-import 'dictionary/dict_search.dart';
+import '../services/dictionary/dict_entry.dart';
+import '../services/dictionary/dict_search.dart';
 
 class DictionaryHelper {
   static final DictionaryHelper _instance = DictionaryHelper._internal();

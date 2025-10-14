@@ -135,13 +135,13 @@
     },
     {
       "name": "functions_client",
-      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/functions_client-2.4.4",
+      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/functions_client-2.5.0",
       "packageUri": "lib/",
       "languageVersion": "3.0"
     },
     {
       "name": "gotrue",
-      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/gotrue-2.15.0",
+      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/gotrue-2.16.0",
       "packageUri": "lib/",
       "languageVersion": "3.3"
     },
@@ -291,7 +291,7 @@
     },
     {
       "name": "postgrest",
-      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/postgrest-2.4.2",
+      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/postgrest-2.5.0",
       "packageUri": "lib/",
       "languageVersion": "3.0"
     },
@@ -303,7 +303,7 @@
     },
     {
       "name": "realtime_client",
-      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/realtime_client-2.5.2",
+      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/realtime_client-2.6.0",
       "packageUri": "lib/",
       "languageVersion": "3.0"
     },
@@ -411,13 +411,13 @@
     },
     {
       "name": "sqlite3",
-      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/sqlite3-2.9.0",
+      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/sqlite3-2.9.3",
       "packageUri": "lib/",
       "languageVersion": "3.5"
     },
     {
       "name": "sqlite3_flutter_libs",
-      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/sqlite3_flutter_libs-0.5.39",
+      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/sqlite3_flutter_libs-0.5.40",
       "packageUri": "lib/",
       "languageVersion": "2.12"
     },
@@ -447,13 +447,13 @@
     },
     {
       "name": "supabase",
-      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/supabase-2.9.1",
+      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/supabase-2.10.0",
       "packageUri": "lib/",
       "languageVersion": "3.3"
     },
     {
       "name": "supabase_flutter",
-      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/supabase_flutter-2.10.1",
+      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/supabase_flutter-2.10.3",
       "packageUri": "lib/",
       "languageVersion": "3.3"
     },
@@ -578,7 +578,7 @@
       "languageVersion": "3.6"
     }
   ],
-  "generated": "2025-10-10T07:06:42.516208Z",
+  "generated": "2025-10-11T23:13:25.953822Z",
   "generator": "pub",
   "generatorVersion": "3.6.1",
   "flutterRoot": "file:///D:/hacker/flutter",

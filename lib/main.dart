@@ -8,8 +8,8 @@ import 'screens/dictionary_screen.dart';
 import 'helpers/dictionary_helper.dart';
 import 'helpers/fsrs/fsrs_database.dart';
 import 'helpers/fsrs_helper.dart';
-import 'models/learn_session_model.dart';
-import 'services/supabase_service.dart';
+import 'models/session_model.dart';
+import 'services/cloud/supabase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();                

@@ -1,8 +1,8 @@
 import 'fsrs/fsrs_database.dart';
-import 'fsrs/card_fetcher.dart';
-import 'fsrs/review_service.dart';
+import '../services/fsrs/card_fetcher.dart';
+import '../services/fsrs/review_service.dart';
 import 'dictionary_helper.dart';
-import '../services/progress_service.dart';
+import '../services/cloud/sync_service.dart';
 import 'package:flutter/foundation.dart';
 
 class FSRSHelper {
@@ -32,10 +32,47 @@ class FSRSHelper {
       FSRSReviewService.getPredictedIntervals(entSeq);
 
   // Sync methods
-  static Future<Map<String, dynamic>> syncToSupabase() async {
+// Sync methods
+  static Future<Map<String, dynamic>> syncToSupabase({
+    Function(int current, int total)? onProgress,
+  }) async {
     try {
       final localCards = await FSRSCardService.getAllCards();
-      final result = await FSRSBackendService.syncLocalToCloud(localCards);
+
+      final result = await FSRSSyncService.syncLocalToCloud(
+        localCards
+            .map((card) => {
+                  ...card,
+                  'due': (card['due'] as num).toDouble(),
+                  'last_review': card['last_review'] != null
+                      ? (card['last_review'] as num).toDouble()
+                      : null,
+                })
+            .toList(),
+        shouldUploadCallback: (localCard, cloudCard) async {
+          bool shouldUpload = false;
+
+          if (cloudCard == null) {
+            shouldUpload = true;
+          } else {
+            final localLastReview = localCard['last_review'] as double?;
+            final cloudLastReview = cloudCard['last_review'] as double?;
+
+            if (localLastReview == null && cloudLastReview == null) {
+              shouldUpload = false;
+            } else if (localLastReview != null && cloudLastReview == null) {
+              shouldUpload = true;
+            } else if (localLastReview == null && cloudLastReview != null) {
+              shouldUpload = false;
+            } else {
+              shouldUpload = localLastReview! > cloudLastReview!;
+            }
+          }
+
+          return shouldUpload;
+        },
+        onProgress: onProgress,
+      );
 
       return {
         'success': result['success'],
@@ -52,77 +89,64 @@ class FSRSHelper {
     }
   }
 
-  static Future<Map<String, dynamic>> syncFromSupabase() async {
+  static Future<Map<String, dynamic>> syncFromSupabase({
+    Function(int current, int total)? onProgress,
+  }) async {
     try {
-      final cloudCards = await FSRSBackendService.getAllCards();
-
-      // Handle empty cloud database
-      if (cloudCards.isEmpty) {
-        debugPrint('☁️ No cloud cards to download');
-        return {
-          'success': true,
-          'synced': 0,
-          'errors': 0,
-          'error': null,
-        };
-      }
-
-      // Get all local cards once (efficient!)
       final localCards = await FSRSCardService.getAllCards();
 
-      // Create lookup map for O(1) access
       final Map<int, Map<String, dynamic>> localCardMap = {
         for (var card in localCards) card['ent_seq'] as int: card
       };
 
-      final result = await FSRSBackendService.syncCloudToLocal(
-        cloudCards,
+      final result = await FSRSSyncService.syncCloudToLocal(
         (cloudCard) async {
-          // Use map lookup instead of database query
           final localCard = localCardMap[cloudCard['ent_seq']];
 
           bool shouldDownload = false;
 
           if (localCard == null) {
-            // Card doesn't exist locally - download it
             shouldDownload = true;
           } else {
-            // Compare timestamps (same logic as upload sync)
-            final localLastReview = localCard['last_review'] as int?;
-            final cloudLastReview = cloudCard['last_review'] as int?;
+            final localLastReview = localCard['last_review'] != null
+                ? (localCard['last_review'] as num).toDouble()
+                : null;
+            final cloudLastReview = cloudCard['last_review'] != null
+                ? (cloudCard['last_review'] as num).toDouble()
+                : null;
 
             if (localLastReview == null && cloudLastReview == null) {
               shouldDownload = false;
             } else if (localLastReview != null && cloudLastReview == null) {
-              shouldDownload = false; // Local is newer
+              shouldDownload = false;
             } else if (localLastReview == null && cloudLastReview != null) {
-              shouldDownload = true; // Cloud is newer
+              shouldDownload = true;
             } else {
-              // Both have timestamps - download if cloud is newer
               shouldDownload = cloudLastReview! > localLastReview!;
             }
           }
 
           if (shouldDownload) {
-            // FILTER OUT CLOUD-ONLY FIELDS before local insert
             final localFormatCard = {
               'ent_seq': cloudCard['ent_seq'],
               'type': cloudCard['type'],
               'queue': cloudCard['queue'],
-              'due': cloudCard['due'],
-              'last_review': cloudCard['last_review'],
+              'due': (cloudCard['due'] as num).toDouble(),
+              'last_review': cloudCard['last_review'] != null
+                  ? (cloudCard['last_review'] as num).toDouble()
+                  : null,
               'reps': cloudCard['reps'],
               'lapses': cloudCard['lapses'],
-              'left': cloudCard['left_steps'], // Convert left_steps -> left
+              'left': cloudCard['left_steps'],
               'stability': cloudCard['stability'],
               'difficulty': cloudCard['difficulty'],
-              // NOTE: Deliberately exclude 'id' field - it doesn't exist in local table
             };
             await FSRSCardService.upsertCard(localFormatCard);
           }
 
           return shouldDownload;
         },
+        onProgress: onProgress,
       );
 
       return {
@@ -144,7 +168,7 @@ class FSRSHelper {
   static Future<Map<String, dynamic>> getSyncStatus() async {
     try {
       final localCount = await FSRSCardService.getCardCount();
-      final supabaseCount = await FSRSBackendService.getCardCount();
+      final supabaseCount = await FSRSSyncService.getCardCount();
 
       return {
         'local': localCount,

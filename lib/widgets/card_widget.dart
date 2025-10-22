@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
-import '../../models/session_model.dart';
 import 'furigana.dart';
 
 class ReviewCardWidget extends StatelessWidget {
-  final LearnSessionModel session;
-  final VoidCallback onShowAnswer;
+  final Map<String, dynamic> card;
+  final List<Map<String, dynamic>> meanings;
+  final List<Map<String, dynamic>> examples;
+  final bool showAnswer;
+  final VoidCallback? onShowAnswer;
 
   const ReviewCardWidget({
     super.key,
-    required this.session,
-    required this.onShowAnswer,
+    required this.card,
+    required this.meanings,
+    required this.examples,
+    this.showAnswer = false,
+    this.onShowAnswer,
   });
 
   @override
   Widget build(BuildContext context) {
-    final card = session.cards[session.currentCardIndex];
     final hasKanji = card['keb'] != null;
 
     return Padding(
@@ -32,7 +36,7 @@ class ReviewCardWidget extends StatelessWidget {
             children: [
               // Kanji/Reading display
               Expanded(
-                flex: session.showingAnswer ? 1 : 2,
+                flex: showAnswer ? 1 : 2,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -40,9 +44,7 @@ class ReviewCardWidget extends StatelessWidget {
                       child: hasKanji
                           ? FuriganaText(
                               kanji: card['keb'],
-                              reading: session.showingAnswer
-                                  ? card['reb'] ?? ''
-                                  : '',
+                              reading: showAnswer ? card['reb'] ?? '' : '',
                               kanjiStyle: TextStyle(
                                 fontSize: 48,
                                 color: Colors.white,
@@ -69,11 +71,11 @@ class ReviewCardWidget extends StatelessWidget {
               Divider(color: Colors.grey[700]),
               // Answer area
               Expanded(
-                flex: session.showingAnswer ? 3 : 2,
+                flex: showAnswer ? 3 : 2,
                 child: Center(
-                  child: session.showingAnswer
+                  child: showAnswer
                       ? SingleChildScrollView(
-                          child: _buildMeaningsAndExamples(session),
+                          child: _buildMeaningsAndExamples(),
                         )
                       : TextButton(
                           onPressed: onShowAnswer,
@@ -94,10 +96,10 @@ class ReviewCardWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildMeaningsAndExamples(LearnSessionModel session) {
+  Widget _buildMeaningsAndExamples() {
     Map<int, Map<String, dynamic>> examplesBySense = {};
 
-    for (var example in session.examples) {
+    for (var example in examples) {
       String japaneseText = example['japanese_text'] ?? '';
       String englishText = example['english_translation'] ?? '';
       if (japaneseText.isEmpty || englishText.isEmpty) continue;
@@ -109,7 +111,7 @@ class ReviewCardWidget extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: session.meanings.asMap().entries.map((entry) {
+      children: meanings.asMap().entries.map((entry) {
         int index = entry.key;
         Map<String, dynamic> meaning = entry.value;
         int senseId = meaning['id'];

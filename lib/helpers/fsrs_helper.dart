@@ -3,7 +3,6 @@ import '../services/fsrs/card_fetcher.dart';
 import '../services/fsrs/review_service.dart';
 import 'dictionary_helper.dart';
 import '../services/cloud/sync_service.dart';
-import 'package:flutter/foundation.dart';
 
 class FSRSHelper {
   static final FSRSHelper _instance = FSRSHelper._internal();

@@ -180,6 +180,8 @@ class LearnScreenState extends State<LearnScreen> {
   }
 
   Widget _buildReviewArea(LearnSessionModel session) {
+    final currentCard = session.cards[session.currentCardIndex];
+    
     return Column(
       children: [
         // Progress indicator
@@ -199,7 +201,10 @@ class LearnScreenState extends State<LearnScreen> {
         // Review card
         Expanded(
           child: ReviewCardWidget(
-            session: session,
+            card: currentCard,
+            meanings: session.meanings,
+            examples: session.examples,
+            showAnswer: session.showingAnswer,
             onShowAnswer: () => LearnSessionService.showAnswer(context),
           ),
         ),

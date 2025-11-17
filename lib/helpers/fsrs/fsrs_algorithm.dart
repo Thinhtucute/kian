@@ -4,28 +4,50 @@ import 'package:crypto/crypto.dart';
 import 'dart:convert';
 
 class FSRSAlgorithm {
-  // Weights
-  static const double w0 = 0.1747; // Initial stability for Again
-  static const double w1 = 0.4583; // Initial stability for Hard
-  static const double w2 = 0.4583; // Initial stability for Good
-  static const double w3 = 7.0958; // Initial stability for Easy
-  static const double w4 = 6.6473; // Initial difficulty base
-  static const double w5 = 0.2448; // Initial difficulty modifier
-  static const double w6 = 2.3396; // Difficulty decay
-  static const double w7 = 0.0033; // Difficulty change per grade
-  static const double w8 = 1.2529; // Stability increase base
-  static const double w9 = 0.0000; // Grade effect on stability
-  static const double w10 = 0.4226; // Difficulty effect on stability
-  static const double w11 = 1.3872; // Stability effect on stability
-  static const double w12 = 0.1288; // Retrievability effect on stability
-  static const double w13 = 0.5220; // Post-lapse stability base
-  static const double w14 = 1.0061; // Post-lapse difficulty exponent
-  static const double w15 = 0.8484; // Post-lapse stability exponent
-  static const double w16 = 1.1826; // Post-lapse retrievability effect
-  static const double w17 = 0.2438; // Short-term stability base
-  static const double w18 = 0.0000; // Short-term stability modifier
-  static const double w19 = 0.0910; // Short-term stability decay
-  static const double w20 = 0.4217; // Forgetting curve decay
+  // Weights 
+  // Initial stability for Again
+  static const double w0 = 0.212;    // 0.1747
+  // Initial stability for Hard
+  static const double w1 = 1.2931;   // 0.4583
+  // Initial stability for Good
+  static const double w2 = 2.3065;   // 0.4583
+  // Initial stability for Easy
+  static const double w3 = 8.2956;   // 7.0958
+  // Initial difficulty base
+  static const double w4 = 6.4133;   // 6.6473
+  // Initial difficulty modifier
+  static const double w5 = 0.8334;   // 0.2448
+  // Difficulty decay
+  static const double w6 = 3.0194;   // 2.3396
+  // Difficulty change per grade
+  static const double w7 = 0.001;    // 0.0033
+  // Stability increase base
+  static const double w8 = 1.8722;   // 1.2529
+  // Grade effect on stability
+  static const double w9 = 0.1666;   // 0.0000
+  // Difficulty effect on stability
+  static const double w10 = 0.796;   // 0.4226
+  // Stability effect on stability
+  static const double w11 = 1.4835;  // 1.3872
+  // Retrievability effect on stability
+  static const double w12 = 0.0614;  // 0.1288
+  // Post-lapse stability base
+  static const double w13 = 0.2629;  // 0.5220
+  // Post-lapse difficulty exponent
+  static const double w14 = 1.6483;  // 1.0061
+  // Post-lapse stability exponent
+  static const double w15 = 0.6014;  // 0.8484
+  // Post-lapse retrievability effect
+  static const double w16 = 1.8729;  // 1.1826
+  // Short-term stability base
+  static const double w17 = 0.5425;  // 0.2438
+  // Short-term stability modifier
+  static const double w18 = 0.0912;  // 0.0000
+  // Short-term stability decay
+  static const double w19 = 0.0658;  // 0.0910
+  // Forgetting curve decay
+  static const double w20 = 0.1542;  // 0.4217
+
 
   static const double defaultRetention = 0.9;
   static double get factor => pow(0.9, 1 / -w20) - 1;

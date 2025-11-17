@@ -5,13 +5,13 @@
 *.swp
 .DS_Store
 .atom/
-.build/
 .buildlog/
 .history
 .svn/
 .swiftpm/
 migrate_working_dir/
 .env
+build/
 
 # IntelliJ related
 *.iml
@@ -19,9 +19,7 @@ migrate_working_dir/
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
+# VSCode
 .vscode/
 
 # Flutter/Dart/Pub related
@@ -32,15 +30,34 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
 
-# Symbolication related
+# Symbolication
 app.*.symbols
 
-# Obfuscation related
+# Obfuscation
 app.*.map.json
 
-# Android Studio will place build artifacts here
+# Android Studio build artifacts
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# ==== ALLOW BUILDS BELOW THIS LINE ====
+
+# Allow Windows Release build
+!build/windows/
+!build/windows/x64/
+!build/windows/x64/runner/
+!build/windows/x64/runner/Release/
+!build/windows/x64/runner/Release/**
+
+# Allow Android APKs
+!build/app/
+!build/app/outputs/
+!build/app/outputs/flutter-apk/
+!build/app/outputs/flutter-apk/*.apk
+
+# Allow Android App Bundles (AAB)
+!build/app/outputs/bundle/
+!build/app/outputs/bundle/**/*
+!build/app/outputs/bundle/**/*.aab

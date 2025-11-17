@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../../helpers/fsrs/fsrs_database.dart';
 import '../../helpers/fsrs/fsrs_algorithm.dart';
 import 'package:anki2/services/dictionary/dict_entry.dart';
+import '../../services/cloud/sync_service.dart';
 
 class FSRSReviewService {
   static const List<String> names = ['New', 'Learning', 'Review', 'Relearning'];
@@ -226,6 +227,24 @@ class FSRSReviewService {
         },
         where: 'ent_seq = ?',
         whereArgs: [entSeq]);
+    
+    try {
+      await FSRSSyncService.upsertCard({
+        'ent_seq': entSeq,
+        'stability': newStability,
+        'difficulty': newDifficulty,
+        'due': newDue,
+        'last_review': now,
+        'reps': reps + 1,
+        'lapses': newLapses,
+        'type': newType,
+        'queue': newQueue,
+        'left': newLeft,
+      });
+    } catch (e) {
+      debugPrint('❌ Auto-upload failed (card saved locally): $e');
+    }
+    
     return {
       'due': newDue,
       'stability': newStability,

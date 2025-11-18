@@ -1,4 +1,4 @@
-# Anki2 - Japanese Learning App
+# kian - Japanese Learning App
 
 A Flutter-based Japanese learning application with spaced repetition system (FSRS) and dictionary integration.
 

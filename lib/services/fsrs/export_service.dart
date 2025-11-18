@@ -5,7 +5,7 @@ class ExportService {
   
   /// Export database to Downloads folder
   static Future<void> exportDatabase(BuildContext context) async {
-    const dbPath = '/data/data/com.example.anki2/app_flutter/fsrs.db';
+    const dbPath = '/data/data/com.example.kian/app_flutter/fsrs.db';
     final exportDir = Directory('/storage/emulated/0/Download/');
     final exportPath = '${exportDir.path}/cards.db';
 

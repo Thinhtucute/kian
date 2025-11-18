@@ -1,4 +1,4 @@
-package com.example.anki2
+package com.example.kian
 
 import io.flutter.embedding.android.FlutterActivity
 

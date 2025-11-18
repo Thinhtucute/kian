@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../../helpers/fsrs/fsrs_database.dart';
 import '../../helpers/fsrs/fsrs_algorithm.dart';
-import 'package:anki2/services/dictionary/dict_entry.dart';
+import 'package:kian/services/dictionary/dict_entry.dart';
 import '../../services/cloud/sync_service.dart';
 
 class FSRSReviewService {

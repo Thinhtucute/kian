@@ -5,11 +5,13 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'screens/learn_screen.dart';
 import 'screens/dictionary_screen.dart';
+import 'screens/login_screen.dart';
 import 'helpers/dictionary_helper.dart';
 import 'helpers/fsrs/fsrs_database.dart';
 import 'helpers/fsrs_helper.dart';
 import 'models/session_model.dart';
 import 'services/cloud/supabase_service.dart';
+import 'services/cloud/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();                
@@ -67,7 +69,37 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       theme: ThemeData.dark(),
-      home: MainScreen(),
+      home: AuthWrapper(),
+    );
+  }
+}
+
+// Wrapper to handle authentication state
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder(
+      stream: AuthService.authStateChanges,
+      builder: (context, snapshot) {
+        // Show loading while checking auth state
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        // If user is logged in, show main screen
+        if (snapshot.hasData && AuthService.isLoggedIn) {
+          return const MainScreen();
+        }
+
+        // Otherwise show login screen
+        return const LoginScreen();
+      },
     );
   }
 }

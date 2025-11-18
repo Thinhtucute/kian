@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'supabase_service.dart';
+import 'auth_service.dart';
 import '../../helpers/fsrs/fsrs_algorithm.dart';
 import '../fsrs/card_fetcher.dart';
 
@@ -8,15 +9,32 @@ class FSRSSyncService {
   static SupabaseClient get _client => SupabaseService.client;
 
   static Future<int> getCardCount() async {
-    final response =
-        await _client.from('cards').select().count(CountOption.exact);
+    final userId = AuthService.currentUserId;
+    if (userId == null) {
+      throw Exception('User not authenticated');
+    }
+    
+    final response = await _client
+        .from('cards')
+        .select()
+        .eq('user_id', userId)
+        .count(CountOption.exact);
     return response.count;
   }
 
   static Future<Map<String, dynamic>?> getCard(int entSeq) async {
+    final userId = AuthService.currentUserId;
+    if (userId == null) {
+      throw Exception('User not authenticated');
+    }
+    
     try {
-      final response =
-          await _client.from('cards').select().eq('ent_seq', entSeq).single();
+      final response = await _client
+          .from('cards')
+          .select()
+          .eq('user_id', userId)
+          .eq('ent_seq', entSeq)
+          .single();
       return response;
     } catch (e) {
       return null;
@@ -24,7 +42,13 @@ class FSRSSyncService {
   }
 
   static Future<void> upsertCard(Map<String, dynamic> card) async {
+    final userId = AuthService.currentUserId;
+    if (userId == null) {
+      throw Exception('User not authenticated');
+    }
+
     await _client.from('cards').upsert({
+      'user_id': userId,
       'ent_seq': card['ent_seq'],
       'type': card['type'],
       'queue': card['queue'],
@@ -35,7 +59,7 @@ class FSRSSyncService {
       'left_steps': card['left_steps'] ?? card['left'],
       'stability': card['stability'],
       'difficulty': card['difficulty'],
-    }, onConflict: 'ent_seq');
+    });
   }
 
   static Future<Map<String, dynamic>> syncLocalToCloud(
@@ -56,9 +80,17 @@ class FSRSSyncService {
       final batch = localCards.skip(i).take(batchSize).toList();
 
       try {
+        final userId = AuthService.currentUserId;
+        if (userId == null) {
+          throw Exception('User not authenticated');
+        }
+        
         final entSeqs = batch.map((card) => card['ent_seq'] as int).toList();
-        final response =
-            await _client.from('cards').select().inFilter('ent_seq', entSeqs);
+        final response = await _client
+            .from('cards')
+            .select()
+            .eq('user_id', userId)
+            .inFilter('ent_seq', entSeqs);
 
         final cloudCards = List<Map<String, dynamic>>.from(response);
         final cloudCardsMap = {
@@ -85,8 +117,14 @@ class FSRSSyncService {
         }
 
         if (cardsToUpload.isNotEmpty) {
+          final userId = AuthService.currentUserId;
+          if (userId == null) {
+            throw Exception('User not authenticated');
+          }
+
           final supabaseCards = cardsToUpload
               .map((card) => {
+                    'user_id': userId,
                     'ent_seq': card['ent_seq'],
                     'type': card['type'],
                     'queue': card['queue'],
@@ -102,7 +140,7 @@ class FSRSSyncService {
 
           await _client
               .from('cards')
-              .upsert(supabaseCards, onConflict: 'ent_seq');
+              .upsert(supabaseCards);
           uploaded += cardsToUpload.length;
           debugPrint('↑ Batch uploaded ${cardsToUpload.length} cards');
         }
@@ -145,9 +183,15 @@ class FSRSSyncService {
 
     try {
       while (true) {
+        final userId = AuthService.currentUserId;
+        if (userId == null) {
+          throw Exception('User not authenticated');
+        }
+        
         final response = await _client
             .from('cards')
             .select()
+            .eq('user_id', userId)
             .order('ent_seq', ascending: true)
             .range(offset, offset + batchSize - 1);
 

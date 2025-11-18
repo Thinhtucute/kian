@@ -93,10 +93,17 @@ class FSRSSyncManager {
         },
       );
 
-      if (!context.mounted) return;
+      if (!context.mounted) {
+        progressNotifier.dispose();
+        return;
+      }
       
+      // Hide snackbar and wait for animation to complete
       scaffoldMessenger?.hideCurrentSnackBar();
+      await Future.delayed(Duration(milliseconds: 500));
       progressNotifier.dispose();
+
+      if (!context.mounted) return;
 
       if (uploadResult['success'] && downloadResult['success']) {
         final uploaded = uploadResult['synced'] ?? 0;
@@ -130,9 +137,17 @@ class FSRSSyncManager {
         );
       }
     } catch (e) {
-      if (!context.mounted) return;
+      if (!context.mounted) {
+        progressNotifier.dispose();
+        return;
+      }
+      
+      // Hide snackbar and wait for animation to complete
       scaffoldMessenger?.hideCurrentSnackBar();
+      await Future.delayed(Duration(milliseconds: 500));
       progressNotifier.dispose();
+
+      if (!context.mounted) return;
       
       scaffoldMessenger?.showSnackBar(
         SnackBar(

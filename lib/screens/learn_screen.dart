@@ -3,6 +3,7 @@ import 'dart:async';
 import '../widgets/card_widget.dart';
 import '../widgets/session_stats.dart';
 import '../services/cloud/sync_manager.dart';
+import '../services/cloud/auth_service.dart';
 import '../services/fsrs/export_service.dart';
 import '../services/fsrs/learn_session.dart';
 import 'package:provider/provider.dart';
@@ -64,6 +65,42 @@ class LearnScreenState extends State<LearnScreen> {
 
   Future<void> _exportData() async {
     await ExportService.exportDatabase(context);
+  }
+
+  Future<void> _handleLogout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await AuthService.signOut();
+        // Navigation will be handled by auth state listener
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Logout failed: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 
   Future<void> _onRatingPressed(bool isGood) async {
@@ -134,6 +171,35 @@ class LearnScreenState extends State<LearnScreen> {
                 icon: Icon(Icons.upload_file),
                 tooltip: 'Export',
                 onPressed: _exportData,
+              ),
+
+              // Profile/Logout button
+              PopupMenuButton<String>(
+                icon: Icon(Icons.account_circle, color: Colors.white),
+                onSelected: (value) {
+                  if (value == 'logout') {
+                    _handleLogout();
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    enabled: false,
+                    child: Text(
+                      AuthService.currentUser?.email ?? 'User',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout, size: 20),
+                        SizedBox(width: 8),
+                        Text('Logout'),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

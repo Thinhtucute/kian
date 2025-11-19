@@ -1,0 +1,54 @@
+name: Build and Release Flutter App
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload APK as Release Asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/app/outputs/flutter-apk/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build_windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Build Windows
+        run: flutter build windows --release
+
+      - name: Zip Windows Release folder
+        run: Compress-Archive -Path build/windows/runner/Release -DestinationPath windows-release.zip
+
+      - name: Upload Windows EXE as Release Asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: windows-release.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

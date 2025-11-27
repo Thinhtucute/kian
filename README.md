@@ -239,4 +239,4 @@ Powered by Supabase, a serverless backend service provider and an open-source Fi
 
 ---
 
-**Note**: This app requires internet connection for initial login and sync. Offline learning is supported after cards are downloaded.
+***Note**: This app requires an internet connection for the initial login and for syncing. Offline learning is available once you are logged in and your cards have been downloaded/initially synced.*

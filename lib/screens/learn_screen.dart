@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import '../widgets/card_widget.dart';
 import '../widgets/session_stats.dart';
@@ -19,17 +20,20 @@ class LearnScreen extends StatefulWidget {
 class LearnScreenState extends State<LearnScreen> {
   Timer? _sessionTimer;
   bool _isSyncing = false;
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
-    _startTimer();
     _loadCards();
+    _startTimer();
+    _focusNode.requestFocus();
   }
 
   @override
   void dispose() {
     _sessionTimer?.cancel();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -103,7 +107,7 @@ class LearnScreenState extends State<LearnScreen> {
     }
   }
 
-  Future<void> _onRatingPressed(bool isGood) async {
+  Future<void> _onGoodPressed(bool isGood) async {
     await LearnSessionService.processRating(context, isGood, _sessionTimer);
   }
 
@@ -247,38 +251,62 @@ class LearnScreenState extends State<LearnScreen> {
 
   Widget _buildReviewArea(LearnSessionModel session) {
     final currentCard = session.cards[session.currentCardIndex];
-    
-    return Column(
-      children: [
-        // Progress indicator
-        LinearProgressIndicator(
-          value: (session.currentCardIndex + 1) / session.cards.length,
-          backgroundColor: Colors.grey[800],
-          valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
-        ),
-        Padding(
-          padding: EdgeInsets.all(16),
-          child: Text(
-            '${session.currentCardIndex + 1} / ${session.cards.length}',
-            style: TextStyle(color: Colors.grey[400]),
-          ),
-        ),
 
-        // Review card
-        Expanded(
-          child: ReviewCardWidget(
-            card: currentCard,
-            meanings: session.meanings,
-            examples: session.examples,
-            showAnswer: session.showingAnswer,
-            onShowAnswer: () => LearnSessionService.showAnswer(context),
+    return KeyboardListener(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: (KeyEvent event) {
+        if (event is KeyDownEvent) {
+          if (!session.showingAnswer && event.logicalKey == LogicalKeyboardKey.space) {
+            LearnSessionService.showAnswer(context);
+          }
+          else if (session.showingAnswer && (
+              event.logicalKey == LogicalKeyboardKey.digit2 ||
+              event.logicalKey == LogicalKeyboardKey.numpad2 ||
+              event.logicalKey == LogicalKeyboardKey.space
+          )) {
+            _onGoodPressed(true);
+          }
+          else if (session.showingAnswer && (
+              event.logicalKey == LogicalKeyboardKey.digit1 ||
+              event.logicalKey == LogicalKeyboardKey.numpad1
+          )) {
+            _onGoodPressed(false);
+          }
+        }
+      },
+      child: Column(
+        children: [
+          // Progress indicator
+          LinearProgressIndicator(
+            value: (session.currentCardIndex + 1) / session.cards.length,
+            backgroundColor: Colors.grey[800],
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
           ),
-        ),
+          Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              '${session.currentCardIndex + 1} / ${session.cards.length}',
+              style: TextStyle(color: Colors.grey[400]),
+            ),
+          ),
 
-        // Rating buttons
-        if (session.showingAnswer) _buildRatingButtons(session),
-        if (!session.showingAnswer) SizedBox(height: 100),
-      ],
+          // Review card
+          Expanded(
+            child: ReviewCardWidget(
+              card: currentCard,
+              meanings: session.meanings,
+              examples: session.examples,
+              showAnswer: session.showingAnswer,
+              onShowAnswer: () => LearnSessionService.showAnswer(context),
+            ),
+          ),
+
+          // Rating buttons
+          if (session.showingAnswer) _buildRatingButtons(session),
+          if (!session.showingAnswer) SizedBox(height: 100),
+        ],
+      ),
     );
   }
 
@@ -293,13 +321,13 @@ class LearnScreenState extends State<LearnScreen> {
               _buildRatingButton(
                 'Again',
                 Colors.red[700]!,
-                () => _onRatingPressed(false),
+                () => _onGoodPressed(false),
                 session.predictedIntervals['again'] ?? '10 mins',
               ),
               _buildRatingButton(
                 'Good',
                 Colors.green[700]!,
-                () => _onRatingPressed(true),
+                () => _onGoodPressed(true),
                 session.predictedIntervals['good'] ?? 'unknown',
               ),
             ],

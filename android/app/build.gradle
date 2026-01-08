@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.kian"
+    namespace = "com.thinhtucute.kian"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 

@@ -1,4 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.thinhtucute.kian">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <application
@@ -8,7 +8,7 @@
         android:networkSecurityConfig="@xml/network_security_config">
         
         <activity
-            android:name=".MainActivity"
+            android:name="com.thinhtucute.kian.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""

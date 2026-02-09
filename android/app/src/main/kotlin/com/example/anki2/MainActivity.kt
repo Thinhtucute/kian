@@ -1,4 +1,4 @@
-package com.example.kian
+package com.thinhtucute.kian
 
 import io.flutter.embedding.android.FlutterActivity
 

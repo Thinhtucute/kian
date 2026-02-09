@@ -257,13 +257,19 @@ class LearnScreenState extends State<LearnScreen> {
       autofocus: true,
       onKeyEvent: (KeyEvent event) {
         if (event is KeyDownEvent) {
-          if (!session.showingAnswer && event.logicalKey == LogicalKeyboardKey.space) {
+          if (!session.showingAnswer && (
+              event.logicalKey == LogicalKeyboardKey.space ||
+              event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.numpadEnter
+          )) {
             LearnSessionService.showAnswer(context);
           }
           else if (session.showingAnswer && (
               event.logicalKey == LogicalKeyboardKey.digit2 ||
               event.logicalKey == LogicalKeyboardKey.numpad2 ||
-              event.logicalKey == LogicalKeyboardKey.space
+              event.logicalKey == LogicalKeyboardKey.space ||
+              event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.numpadEnter
           )) {
             _onGoodPressed(true);
           }

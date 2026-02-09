@@ -42,10 +42,29 @@ class DictionaryScreenState extends State<DictionaryScreen> {
       try {
         debugPrint('Searching for: "$query"');
         final db = await DictionaryHelper.getDatabase();
-        String searchTerm = "${query.trim()}*";
+        String queryTrimmed = query.trim();
+        String searchTerm = "$queryTrimmed*";
 
+        // Parameters for the query (in order of appearance):
+        // 1. k.keb = ? (exact match for kanji)
+        // 2. kanji_fts.keb MATCH ? (FTS match for kanji)
+        // 3. reading_fts.reb MATCH ? (FTS match for reading)
+        // 4. g.gloss LIKE ? (exact gloss match)
+        // 5. g.gloss LIKE ? (gloss prefix match)
+        // 6. gloss_fts.gloss MATCH ? (FTS match for gloss)
         final results = await db.rawQuery("""
           WITH combined_results AS (
+            SELECT DISTINCT k.ent_seq, k.keb, r.reb, g.gloss,
+              0 as rank,
+              COALESCE(k.keb, '') || COALESCE(r.reb, '') as dedup_key
+            FROM kanji_element k
+            LEFT JOIN reading_element r ON k.ent_seq = r.ent_seq
+            LEFT JOIN sense s ON k.ent_seq = s.ent_seq
+            LEFT JOIN gloss g ON s.id = g.sense_id
+            WHERE k.keb = ?
+
+            UNION
+            
             SELECT DISTINCT k.ent_seq, k.keb, r.reb, g.gloss,
               1 as rank,
               COALESCE(k.keb, '') || COALESCE(r.reb, '') as dedup_key
@@ -92,7 +111,14 @@ class DictionaryScreenState extends State<DictionaryScreen> {
           WHERE row_num = 1 AND ent_seq IS NOT NULL
           ORDER BY rank ASC, LENGTH(gloss) ASC
           LIMIT 50
-        """, [searchTerm, searchTerm, query.trim(), 'to ${query.trim()}%', searchTerm]);
+        """, [
+          queryTrimmed,        // 1. Exact kanji match
+          searchTerm,          // 2. Kanji FTS
+          searchTerm,          // 3. Reading FTS
+          queryTrimmed,        // 4. Exact gloss
+          'to $queryTrimmed%', // 5. Gloss prefix
+          searchTerm,          // 6. Gloss FTS
+        ]);
 
         debugPrint('Found ${results.length} results');
 

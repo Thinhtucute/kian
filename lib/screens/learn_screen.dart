@@ -3,12 +3,12 @@ import 'package:flutter/services.dart';
 import 'dart:async';
 import '../widgets/card_widget.dart';
 import '../widgets/session_stats.dart';
-import '../services/cloud/sync_manager.dart';
 import '../services/cloud/auth_service.dart';
 import '../services/fsrs/export_service.dart';
 import '../services/fsrs/learn_session.dart';
 import 'package:provider/provider.dart';
-import '../../models/session_model.dart';
+import '../models/session_model.dart';
+import '../models/sync_model.dart';
 
 class LearnScreen extends StatefulWidget {
   const LearnScreen({super.key});
@@ -19,7 +19,6 @@ class LearnScreen extends StatefulWidget {
 
 class LearnScreenState extends State<LearnScreen> {
   Timer? _sessionTimer;
-  bool _isSyncing = false;
   final FocusNode _focusNode = FocusNode();
 
   @override
@@ -48,27 +47,31 @@ class LearnScreenState extends State<LearnScreen> {
     await LearnSessionService.loadCards(context);
   }
 
-  Future<void> _performSync() async {
-    if (_isSyncing) return;
-
-    setState(() => _isSyncing = true);
-
-    try {
-      await FSRSSyncManager.performSync(
-        context: context,
-        onComplete: () async {
-          await _loadCards();
-        },
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isSyncing = false);
-      }
-    }
-  }
-
   Future<void> _exportData() async {
     await ExportService.exportDatabase(context);
+  }
+
+  Future<void> _performSync() async {
+    final syncModel = context.read<SyncModel>();
+    await syncModel.performSync(onComplete: _loadCards);
+
+    if (!mounted) return;
+    final result = syncModel.lastResult;
+    if (result?.success == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sync successful'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else if (result != null && result.error != null && !result.error!.contains('cancelled')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Sync failed: ${result.error}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Future<void> _handleLogout() async {
@@ -144,7 +147,7 @@ class LearnScreenState extends State<LearnScreen> {
 
               // Sync button
               IconButton(
-                icon: _isSyncing
+                icon: context.watch<SyncModel>().isSyncing
                     ? SizedBox(
                         width: 20,
                         height: 20,
@@ -156,7 +159,7 @@ class LearnScreenState extends State<LearnScreen> {
                       )
                     : Icon(Icons.sync, color: Colors.white),
                 tooltip: 'Sync',
-                onPressed: _isSyncing ? null : _performSync,
+                onPressed: _performSync,
               ),
 
               // Session timer

@@ -68,6 +68,7 @@ class FSRSSyncService {
             Map<String, dynamic> localCard, Map<String, dynamic>? cloudCard)?
         shouldUploadCallback,
     Function(int current, int total)? onProgress,
+    bool Function()? shouldCancel,
   }) async {
     int uploaded = 0;
     int skipped = 0;
@@ -77,6 +78,9 @@ class FSRSSyncService {
 
     const int batchSize = 100;
     for (int i = 0; i < localCards.length; i += batchSize) {
+      if (shouldCancel != null && shouldCancel()) {
+        throw Exception('Sync cancelled');
+      }
       final batch = localCards.skip(i).take(batchSize).toList();
 
       try {
@@ -170,6 +174,7 @@ class FSRSSyncService {
   static Future<Map<String, dynamic>> syncCloudToLocal(
     Future<bool> Function(Map<String, dynamic>) shouldDownloadCallback, {
     Function(int current, int total)? onProgress,
+    bool Function()? shouldCancel,
   }) async {
     int downloaded = 0;
     int skipped = 0;
@@ -183,6 +188,9 @@ class FSRSSyncService {
 
     try {
       while (true) {
+        if (shouldCancel != null && shouldCancel()) {
+          throw Exception('Sync cancelled');
+        }
         final userId = AuthService.currentUserId;
         if (userId == null) {
           throw Exception('User not authenticated');
@@ -200,6 +208,9 @@ class FSRSSyncService {
         if (batch.isEmpty) break;
 
         for (final cloudCard in batch) {
+          if (shouldCancel != null && shouldCancel()) {
+            throw Exception('Sync cancelled');
+          }
           try {
             final entSeq = cloudCard['ent_seq'] as int;
 

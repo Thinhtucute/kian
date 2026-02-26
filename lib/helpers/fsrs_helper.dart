@@ -34,6 +34,7 @@ class FSRSHelper {
 // Sync methods
   static Future<Map<String, dynamic>> syncToSupabase({
     Function(int current, int total)? onProgress,
+    bool Function()? shouldCancel,
   }) async {
     try {
       final localCards = await FSRSCardService.getAllCards();
@@ -71,6 +72,7 @@ class FSRSHelper {
           return shouldUpload;
         },
         onProgress: onProgress,
+        shouldCancel: shouldCancel,
       );
 
       return {
@@ -88,8 +90,11 @@ class FSRSHelper {
     }
   }
 
+
+
   static Future<Map<String, dynamic>> syncFromSupabase({
     Function(int current, int total)? onProgress,
+    bool Function()? shouldCancel,
   }) async {
     try {
       final localCards = await FSRSCardService.getAllCards();
@@ -146,6 +151,7 @@ class FSRSHelper {
           return shouldDownload;
         },
         onProgress: onProgress,
+        shouldCancel: shouldCancel,
       );
 
       return {

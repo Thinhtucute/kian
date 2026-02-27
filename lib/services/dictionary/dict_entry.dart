@@ -1,12 +1,13 @@
 import 'package:flutter/foundation.dart';
 import '../../helpers/dictionary/dict_database.dart';
+import '../../helpers/logger.dart';
 
 class DictionaryEntryService {
   static Future<Map<String, dynamic>?> getEntryById(int entSeq) async {
     try {
       final db = await DictionaryDatabase.getDatabase();
 
-      debugPrint('Looking up dictionary entry: $entSeq');
+      kLog('Looking up dictionary entry: $entSeq');
 
       // First verify the entry exists in the reading table (all entries should have readings)
       final entryCheck = await db.rawQuery(
@@ -14,7 +15,7 @@ class DictionaryEntryService {
           [entSeq]);
 
       if (entryCheck.isEmpty) {
-        debugPrint('No entry found with ID $entSeq');
+        kLog('No entry found with ID $entSeq');
         return null;
       }
 
@@ -48,10 +49,10 @@ class DictionaryEntryService {
         'is_kana_only': isKanaOnly,
       };
 
-      debugPrint('Found entry: $result');
+      kLog('Found entry: $result');
       return result;
     } catch (e) {
-      debugPrint('Error in getEntryById: $e');
+      kLog('Error in getEntryById: $e');
       return null;
     }
   }

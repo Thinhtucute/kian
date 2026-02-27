@@ -4,6 +4,7 @@ import '../../models/session_model.dart';
 import '../../helpers/fsrs_helper.dart';
 import '../../helpers/dictionary_helper.dart';
 import 'dart:async';
+import '../../helpers/logger.dart';
 
 class LearnSessionService {
   
@@ -45,9 +46,10 @@ class LearnSessionService {
   }
 
   // Load due cards and initialize session
-  static Future<void> loadCards(BuildContext context) async {
+  static Future<void> loadCards(BuildContext context, {bool forceReload = false}) async {
     final session = Provider.of<LearnSessionModel>(context, listen: false);
-    if (session.cards.isNotEmpty) return; // Don't reload if already loaded
+    if (session.cards.isNotEmpty && !forceReload) return; // Don't reload if already loaded
+    if (forceReload) session.loadCards([]);
 
     session.setLoading(true);
 
@@ -70,7 +72,7 @@ class LearnSessionService {
       session.setPredictedIntervals({'again': '10 mins', 'good': 'unknown'});
       await loadMeaningsAndExamples(context);
     } catch (e) {
-      debugPrint('Error loading cards: $e');
+      kLog('Error loading cards: $e');
       session.setLoading(false);
     }
   }
@@ -87,10 +89,9 @@ class LearnSessionService {
       if (!context.mounted) return;
       
       session.setPredictedIntervals(intervals);
-      debugPrint(
-          'Predicted intervals for card ${card['ent_seq']}: ${session.predictedIntervals}');
+      kLog('Predicted intervals for card ${card['ent_seq']}: ${session.predictedIntervals}');
     } catch (e) {
-      debugPrint('Error getting intervals: $e');
+      kLog('Error getting intervals: $e');
       session.setPredictedIntervals({'again': '10 mins', 'good': 'unknown'});
     }
 
@@ -119,9 +120,8 @@ class LearnSessionService {
 
     try {
       final card = session.cards[session.currentCardIndex];
-      debugPrint(
-          'Processing review for card ${card['ent_seq']}: ${isGood ? "Good" : "Again"}');
-      debugPrint('Current predicted intervals: ${session.predictedIntervals}');
+      kLog('Processing review for card ${card['ent_seq']}: ${isGood ? "Good" : "Again"}');
+      kLog('Current predicted intervals: ${session.predictedIntervals}');
 
       await FSRSHelper.processReview(card['ent_seq'], isGood,
           reviewDuration: duration);
@@ -132,7 +132,7 @@ class LearnSessionService {
       session.cardsReviewed++;
       await _nextCard(context, sessionTimer);
     } catch (e) {
-      debugPrint('Error processing review: $e');
+      kLog('Error processing review: $e');
     }
   }
 
@@ -140,8 +140,7 @@ class LearnSessionService {
   static Future<void> _nextCard(BuildContext context, Timer? sessionTimer) async {
     final session = Provider.of<LearnSessionModel>(context, listen: false);
     if (session.currentCardIndex < session.cards.length - 1) {
-      debugPrint(
-          'Moving to next card: ${session.currentCardIndex + 1} -> ${session.currentCardIndex + 2}');
+      kLog('Moving to next card: ${session.currentCardIndex + 1} -> ${session.currentCardIndex + 2}');
       session.setCurrentCardIndex(session.currentCardIndex + 1);
       session.setShowingAnswer(false);
       session.startTime = DateTime.now().millisecondsSinceEpoch;
@@ -152,7 +151,7 @@ class LearnSessionService {
         await loadMeaningsAndExamples(context);
       }
     } else {
-      debugPrint('Finished current card set, checking for more cards');
+      kLog('Finished current card set, checking for more cards');
       await _finishReview(context, sessionTimer);
     }
   }
@@ -179,7 +178,7 @@ class LearnSessionService {
         session.startTime = DateTime.now().millisecondsSinceEpoch;
       }
     } catch (e) {
-      debugPrint('Error checking for more cards: $e');
+      kLog('Error checking for more cards: $e');
       session.setLoading(false);
       session.loadCards([]);
 
@@ -190,8 +189,7 @@ class LearnSessionService {
           builder: (BuildContext context) {
             return AlertDialog(
               title: Text('Review Session Complete'),
-              content: Text(
-                  'You reviewed ${session.cardsReviewed} cards in ${_formatDuration(session.sessionDuration)}'),
+              content: Text('You reviewed ${session.cardsReviewed} cards in ${_formatDuration(session.sessionDuration)}'),
               actions: <Widget>[
                 TextButton(
                   child: Text('Close'),

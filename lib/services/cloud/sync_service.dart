@@ -4,6 +4,7 @@ import 'supabase_service.dart';
 import 'auth_service.dart';
 import '../../helpers/fsrs/fsrs_algorithm.dart';
 import '../fsrs/card_fetcher.dart';
+import '../../helpers/logger.dart';
 
 class FSRSSyncService {
   static SupabaseClient get _client => SupabaseService.client;
@@ -146,14 +147,14 @@ class FSRSSyncService {
               .from('cards')
               .upsert(supabaseCards);
           uploaded += cardsToUpload.length;
-          debugPrint('↑ Batch uploaded ${cardsToUpload.length} cards');
+          kLog('↑ Batch uploaded ${cardsToUpload.length} cards');
         }
 
         onProgress?.call(i + batch.length, total);
       } catch (e) {
         errors += batch.length;
         errorDetails.add('Batch ${i ~/ batchSize}: $e');
-        debugPrint('❌ Error uploading batch: $e');
+        kLog('❌ Error uploading batch: $e');
       }
 
       // Small delay between batches
@@ -219,15 +220,15 @@ class FSRSSyncService {
             if (shouldDownload) {
               await _saveCloudCardToLocal(cloudCard);
               downloaded++;
-              debugPrint('⬇ Downloaded card $entSeq (newer cloud version)');
+              kLog('⬇ Downloaded card $entSeq (newer cloud version)');
             } else {
               skipped++;
-              debugPrint('→ Skipped card $entSeq (local same/newer)');
+              kLog('→ Skipped card $entSeq (local same/newer)');
             }
           } catch (e) {
             errors++;
             errorDetails.add('Card ${cloudCard['ent_seq']}: $e');
-            debugPrint('❌ Error downloading card ${cloudCard['ent_seq']}: $e');
+            kLog('❌ Error downloading card ${cloudCard['ent_seq']}: $e');
           }
 
           processedCount++;
@@ -238,11 +239,11 @@ class FSRSSyncService {
         offset += batchSize;
       }
 
-      debugPrint('✅ Sync complete: $processedCount cards processed.');
+      kLog('✅ Sync complete: $processedCount cards processed.');
     } catch (e) {
       errors++;
       errorDetails.add('Failed to fetch cloud cards: $e');
-      debugPrint('❌ Error fetching cloud cards: $e');
+      kLog('❌ Error fetching cloud cards: $e');
     }
 
     return {
@@ -329,7 +330,7 @@ class FSRSSyncService {
       }
       return reviews;
     } catch (e) {
-      debugPrint('Error getting due cards from Supabase: $e');
+      kLog('Error getting due cards from Supabase: $e');
       return [];
     }
   }
@@ -351,9 +352,9 @@ class FSRSSyncService {
         'stability': 2.3065,
         'difficulty': 6.4133,
       });
-      debugPrint('Card $entSeq added to Supabase');
+      kLog('Card $entSeq added to Supabase');
     } catch (e) {
-      debugPrint('Error adding card to Supabase: $e');
+      kLog('Error adding card to Supabase: $e');
       rethrow;
     }
   }
@@ -407,9 +408,9 @@ class FSRSSyncService {
         'difficulty': result['difficulty'],
       }).eq('ent_seq', entSeq);
 
-      debugPrint('Card $entSeq review processed in Supabase');
+      kLog('Card $entSeq review processed in Supabase');
     } catch (e) {
-      debugPrint('Error processing review in Supabase: $e');
+      kLog('Error processing review in Supabase: $e');
       rethrow;
     }
   }
@@ -449,7 +450,7 @@ class FSRSSyncService {
         'last_review': card['last_review'],
       };
     } catch (e) {
-      debugPrint('Error getting predicted intervals from Supabase: $e');
+      kLog('Error getting predicted intervals from Supabase: $e');
       return {
         'interval': 'unknown',
         'type': 0,

@@ -3,6 +3,7 @@ import '../../helpers/fsrs/fsrs_database.dart';
 import '../../helpers/fsrs/fsrs_algorithm.dart';
 import 'package:kian/services/dictionary/dict_entry.dart';
 import '../../services/cloud/sync_service.dart';
+import '../../helpers/logger.dart';
 
 class FSRSReviewService {
   static const List<String> names = ['New', 'Learning', 'Review', 'Relearning'];
@@ -23,7 +24,7 @@ class FSRSReviewService {
       }
       return "Vocab #$entSeq";
     } catch (e) {
-      debugPrint('Error in getVocabForEntry: $e');
+      kLog('Error in getVocabForEntry: $e');
       return "Error: $entSeq";
     }
   }
@@ -88,7 +89,7 @@ class FSRSReviewService {
         nextIntervalDays = 10.0 / (60 * 24);
         newLapses++;
       }
-      debugPrint('New card: Initializing stability to ${newStability.toStringAsFixed(2)} and difficulty to ${newDifficulty.toStringAsFixed(2)}');
+      kLog('New card: Initializing stability to ${newStability.toStringAsFixed(2)} and difficulty to ${newDifficulty.toStringAsFixed(2)}');
     }
 
     // Learning card (Again)
@@ -140,10 +141,8 @@ class FSRSReviewService {
       currentRetrievability = result['retrievability'] as double;
       usedFSRS = true;
 
-      debugPrint(
-          'Card graduating: Using standard FSRS - stability: ${newStability.toStringAsFixed(2)}');
-      debugPrint(
-          'Card graduating: Using FSRS interval of ${nextIntervalDays.toStringAsFixed(1)} days');
+      kLog('Card graduating: Using standard FSRS - stability: ${newStability.toStringAsFixed(2)}');
+      kLog('Card graduating: Using FSRS interval of ${nextIntervalDays.toStringAsFixed(1)} days');
     }
 
     // Review card
@@ -191,25 +190,25 @@ class FSRSReviewService {
       newLapses++;
       usedFSRS = true;
     } else {
-      debugPrint('Something wrong in Review Service bro');
+      kLog('Something wrong in Review Service bro');
       nextIntervalDays = 1.0;
     }
     final newDue = now + nextIntervalDays;
 
     // Debug
-    debugPrint('Processing review for entry $entSeq: ${await getVocabForEntry(entSeq)}');
-    debugPrint('1. Rating: $rating');
-    debugPrint('2. Type: ${names[currentType]} ($currentType) -> ${names[newType]} ($newType)');
-    debugPrint('3. Queue: ${names[currentQueue]} ($currentQueue) -> ${names[newQueue]} ($newQueue)');
-    debugPrint('4. Left: $currentLeft -> $newLeft');
-    debugPrint('5. Stability: $stability -> $newStability');
-    debugPrint('6. Difficulty: $difficulty -> $newDifficulty');
-    debugPrint('7. Retrievability: $currentRetrievability');
-    debugPrint('8. Elapsed Days: $elapsedDays');
-    debugPrint('9. Reps: $reps -> ${reps + 1}');
-    debugPrint('10. Lapses: $lapses -> $newLapses');
-    debugPrint('11. Next interval: $nextIntervalDays days (${usedFSRS ? "FSRS" : "fixed schedule"})');
-    debugPrint('12. New due time: $newDue');
+    kLog('Processing review for entry $entSeq: ${await getVocabForEntry(entSeq)}');
+    kLog('1. Rating: $rating');
+    kLog('2. Type: ${names[currentType]} ($currentType) -> ${names[newType]} ($newType)');
+    kLog('3. Queue: ${names[currentQueue]} ($currentQueue) -> ${names[newQueue]} ($newQueue)');
+    kLog('4. Left: $currentLeft -> $newLeft');
+    kLog('5. Stability: $stability -> $newStability');
+    kLog('6. Difficulty: $difficulty -> $newDifficulty');
+    kLog('7. Retrievability: $currentRetrievability');
+    kLog('8. Elapsed Days: $elapsedDays');
+    kLog('9. Reps: $reps -> ${reps + 1}');
+    kLog('10. Lapses: $lapses -> $newLapses');
+    kLog('11. Next interval: $nextIntervalDays days (${usedFSRS ? "FSRS" : "fixed schedule"})');
+    kLog('12. New due time: $newDue');
 
     // Update card in database
     await db.update(
@@ -242,7 +241,7 @@ class FSRSReviewService {
         'left': newLeft,
       });
     } catch (e) {
-      debugPrint('❌ Auto-upload failed (card saved locally): $e');
+      kLog('❌ Auto-upload failed (card saved locally): $e');
     }
     
     return {
@@ -284,7 +283,7 @@ class FSRSReviewService {
     final int currentQueue = (card['queue'] as num?)?.toInt() ?? currentType;
     final int left = (card['left'] as num?)?.toInt() ?? 0;
 
-    debugPrint('Previewing intervals for ${names[currentType]} card (type=$currentType, queue=$currentQueue/${names[currentQueue]}, left=$left)');
+    kLog('Previewing intervals for ${names[currentType]} card (type=$currentType, queue=$currentQueue/${names[currentQueue]}, left=$left)');
 
     return FSRSAlgorithm().previewIntervals(
       entSeq: entSeq,

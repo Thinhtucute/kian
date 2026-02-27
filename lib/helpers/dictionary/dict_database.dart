@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3_flutter_libs/sqlite3_flutter_libs.dart';
+import '../logger.dart';
 
 class DictionaryDatabase {
   static Database? _database;
@@ -43,7 +44,7 @@ class DictionaryDatabase {
       dbPath,
       readOnly: true,
       onOpen: (db) async {
-        debugPrint('Dictionary database opened in read-only mode');
+        kLog('Dictionary database opened in read-only mode');
       },
     );
   }
@@ -52,53 +53,53 @@ class DictionaryDatabase {
   static Future<void> debugTableStructure() async {
     final db = await getDatabase();
 
-    debugPrint('\nChecking dictionary structure...');
+    kLog('\nChecking dictionary structure...');
     final mainTables = ['kanji_element', 'reading_element', 'sense', 'gloss'];
 
     for (final table in mainTables) {
       try {
         final columns = await db.rawQuery('PRAGMA table_info($table)');
-        debugPrint('\n$table columns:');
+        kLog('\n$table columns:');
         for (var col in columns) {
-          debugPrint('  ${col['name']} (${col['type']})');
+          kLog('  ${col['name']} (${col['type']})');
         }
 
         // Get sample data
         final sample = await db.rawQuery('SELECT * FROM $table LIMIT 1');
         if (sample.isNotEmpty) {
-          debugPrint('  Sample row: ${sample.first}');
+          kLog('- Sample row: ${sample.first}');
         }
         else {
-          debugPrint('  No data in table');
+          kLog('- No data in table');
         }
       } catch (e) {
-        debugPrint('Error checking $table: $e');
+        kLog('Error checking $table: $e');
       }
     }
 
-    debugPrint('\nChecking FTS5 tables...');
+    kLog('\nChecking FTS5 tables...');
     final ftsTables = ['kanji_fts', 'reading_fts', 'gloss_fts'];
 
     for (final table in ftsTables) {
       try {
         final sample = await db.rawQuery('SELECT * FROM $table LIMIT 1');
-        debugPrint('\n$table available columns:');
+        kLog('\n$table available columns:');
         if (sample.isNotEmpty) {
-          debugPrint('  Columns: ${sample.first.keys.join(', ')}');
-          debugPrint('  Sample: ${sample.first}');
+          kLog('- Columns: ${sample.first.keys.join(', ')}');
+          kLog('- Sample: ${sample.first}');
         }
         else {
-          debugPrint('  Table exists but is empty');
+          kLog('  Table exists but is empty');
         }
       } catch (e) {
-        debugPrint('Error checking $table: $e');
+        kLog('Error checking $table: $e');
       }
     }
   }
 
   static Future<bool> testFTS5Functionality() async {
     final db = await getDatabase();
-    debugPrint('\nTesting FTS5 functionality...');
+    kLog('\nTesting FTS5 functionality...');
 
     try {
       // Find a word that should exist in your database
@@ -112,14 +113,12 @@ class DictionaryDatabase {
       """, [testQuery]);
 
       if (results.isNotEmpty) {
-        debugPrint(
-            '✅ FTS5 MATCH query worked! Found ${results.length} results for "$testQuery"');
-        debugPrint('First result: ${results.first}');
+        kLog('✅ FTS5 MATCH query worked! Found ${results.length} results for "$testQuery"');
+        kLog('First result: ${results.first}');
         return true;
       }
       else {
-        debugPrint(
-            '⚠️ FTS5 MATCH query syntax worked but no results found for "$testQuery"');
+        kLog('⚠️ FTS5 MATCH query syntax worked but no results found for "$testQuery"');
         // Try another common word
         final backup = await db.rawQuery("""
           SELECT * FROM kanji_fts 
@@ -128,16 +127,15 @@ class DictionaryDatabase {
         """, ["人*"]);
 
         if (backup.isNotEmpty) {
-          debugPrint(
-              '✅ Backup FTS5 test worked! Found ${backup.length} results for "人*"');
+          kLog('✅ Backup FTS5 test worked! Found ${backup.length} results for "人*"');
           return true;
         }
-        debugPrint('No results found for common words. Check your data.');
+        kLog('No results found for common words. Check your data.');
         return false;
       }
     } catch (e) {
-      debugPrint('❌ FTS5 MATCH query failed with error: $e');
-      debugPrint('FTS5 functionality appears to be unavailable');
+      kLog('❌ FTS5 MATCH query failed with error: $e');
+      kLog('FTS5 functionality appears to be unavailable');
       return false;
     }
   }

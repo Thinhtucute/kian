@@ -6,47 +6,45 @@ import '../services/cloud/supabase_service.dart';
 import '../helpers/fsrs/fsrs_database.dart';
 import '../helpers/dictionary_helper.dart';
 import '../helpers/fsrs_helper.dart';
+import '../helpers/logger.dart';
 
 Future<void> initialize() async {
     
     try {
     // Initialize Supabase
-    debugPrint("Initializing Supabase...");
+    kLog("Initializing Supabase...");
     await SupabaseService.initialize();
-    debugPrint("Success!");
+    kLog("Success!");
     
-    debugPrint("Starting FFI support initialization...");
+    kLog("Starting FFI support initialization...");
     await DictionaryHelper.initialize();
 
     if (kDebugMode) {
       await DictionaryHelper.debugTableStructure();
       final fts5Works = await DictionaryHelper.testFTS5Functionality();
-      debugPrint('FTS5 functionality is ${fts5Works ? 'available' : 'not available'}.');
+      kLog('FTS5 functionality is ${fts5Works ? 'available' : 'not available'}.');
     }
 
-    debugPrint("Initializing FSRS database...");
+    kLog("Initializing FSRS database...");
     await FSRSDatabase.initialize();
     
-    // Check for bundled database and import
-    // debugPrint("Checking for bundled FSRS database...");
-    // await FSRSDatabase.importBundledDatabase();
     
-    debugPrint("Initializing FSRS Helper...");
+    kLog("Initializing FSRS Helper...");
     await FSRSHelper.initialize();
-    debugPrint("Success!");
+    kLog("Success!");
 
-    debugPrint("Database paths: ");
+    kLog("Database paths: ");
     final docDir = await getApplicationDocumentsDirectory();
-    debugPrint("Documents directory: ${docDir.path}");
+    kLog("Documents directory: ${docDir.path}");
     final fsrsPath = join(docDir.path, "fsrs.db");
     final dictPath = join(docDir.path, "jmdict_fts5.db");
-    debugPrint("FSRS database path: $fsrsPath (exists: ${await File(fsrsPath).exists()})");
-    debugPrint("Dictionary path: $dictPath (exists: ${await File(dictPath).exists()})");
+    kLog("FSRS database path: $fsrsPath (exists: ${await File(fsrsPath).exists()})");
+    kLog("Dictionary path: $dictPath (exists: ${await File(dictPath).exists()})");
         
-    debugPrint("✅ All initialization completed");
+    kLog("✅ All initialization completed");
     
   } catch (e) {
-    debugPrint("❌ Error during initialization: $e");
+    kLog("❌ Error during initialization: $e");
     rethrow;
   }
 }

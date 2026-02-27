@@ -43,8 +43,8 @@ class LearnScreenState extends State<LearnScreen> {
     });
   }
 
-  Future<void> _loadCards() async {
-    await LearnSessionService.loadCards(context);
+  Future<void> _loadCards({bool forceReload = false}) async {
+    await LearnSessionService.loadCards(context, forceReload: forceReload);
   }
 
   Future<void> _exportData() async {
@@ -53,7 +53,7 @@ class LearnScreenState extends State<LearnScreen> {
 
   Future<void> _performSync() async {
     final syncModel = context.read<SyncModel>();
-    await syncModel.performSync(onComplete: _loadCards);
+    await syncModel.performSync(onComplete: () => _loadCards(forceReload: true));
 
     if (!mounted) return;
     final result = syncModel.lastResult;

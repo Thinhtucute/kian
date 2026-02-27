@@ -2,12 +2,13 @@ import 'package:flutter/foundation.dart';
 import '../../helpers/fsrs/fsrs_database.dart';
 import 'package:sqflite/sqflite.dart';
 import '../../helpers/dictionary_helper.dart';
+import '../../helpers/logger.dart';
 
 class FSRSCardService {
   // Add a dictionary entry to FSRS
   static Future<bool> addCard(int entSeq) async {
     try {
-      debugPrint('Adding entry $entSeq to FSRS');
+      kLog('Adding entry $entSeq to FSRS');
       final db = await FSRSDatabase.getDatabase();
       final now = DateTime.now().millisecondsSinceEpoch / (1000 * 60 * 60 * 24); // Convert to days
 
@@ -32,7 +33,7 @@ class FSRSCardService {
 
       return true;
     } catch (e) {
-      debugPrint('Error adding card: $e');
+      kLog('Error adding card: $e');
       return false;
     }
   }
@@ -79,7 +80,7 @@ class FSRSCardService {
         whereArgs: [now, 2],
         orderBy: 'due ASC',
         limit: limit);
-    debugPrint('Review cards query returned: ${reviews.length}');
+    kLog('Review cards query returned: ${reviews.length}');
 
     // Relearning cards
     if (reviews.isEmpty) {
@@ -88,7 +89,7 @@ class FSRSCardService {
           whereArgs: [now, 1],
           orderBy: 'due ASC',
           limit: limit);
-      debugPrint('Relearning cards query returned: ${reviews.length}');
+      kLog('Relearning cards query returned: ${reviews.length}');
     }
 
     // Fallback
@@ -98,7 +99,7 @@ class FSRSCardService {
           whereArgs: [now],
           orderBy: 'due ASC',
           limit: limit);
-      debugPrint('Fallback query returned: ${reviews.length}');
+      kLog('Fallback query returned: ${reviews.length}');
     }
 
     if (reviews.isEmpty) return [];
@@ -117,7 +118,7 @@ class FSRSCardService {
           enrichedCards.add(enrichedCard);
         }
       } catch (e) {
-        debugPrint('Error enriching card $entSeq: $e');
+        kLog('Error enriching card $entSeq: $e');
       }
     }
 

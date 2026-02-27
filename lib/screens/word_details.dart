@@ -3,6 +3,7 @@ import '../helpers/dictionary_helper.dart';
 import '../helpers/fsrs_helper.dart';
 import '../widgets/card_widget.dart';
 import 'dart:async';
+import '../helpers/logger.dart';
 
 class WordDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> entry;
@@ -39,7 +40,7 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      debugPrint('Error loading details: $e');
+      kLog('Error loading details: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -95,7 +96,7 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
         ));
       }
     } catch (e) {
-      debugPrint('Error adding to flashcards: $e');
+      kLog('Error adding to flashcards: $e');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Bi loi cc j do r'),
         backgroundColor: Colors.red,

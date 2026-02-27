@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart'; // For importBundledDatabase()
+import '../logger.dart';
 
 class FSRSDatabase {
   static Database? _database;
@@ -42,14 +42,14 @@ class FSRSDatabase {
           final result =
               await db.rawQuery('SELECT COUNT(*) as count FROM cards');
           final count = Sqflite.firstIntValue(result) ?? 0;
-          debugPrint('FSRS database opened with $count cards');
+          kLog('FSRS database opened with $count cards');
         },
       );
     } catch (e) {
-      debugPrint('Error opening database: $e');
+      kLog('Error opening database: $e');
 
       if (e.toString().contains('no such table')) {
-        debugPrint('Schema issue detected - recreating database');
+        kLog('Schema issue detected - recreating database');
         await File(dbPath).delete();
         return await openDatabase(
           dbPath,
@@ -81,26 +81,6 @@ class FSRSDatabase {
       ''');
       await txn.execute('CREATE INDEX idx_cards_due ON cards(due)');
     });
-    debugPrint('FSRS schema created');
-  }
-
-// Import bundled database from assets if not exists in main.dart
-  static Future<void> importBundledDatabase() async {
-    Directory documentsDirectory = await getApplicationDocumentsDirectory();
-    String dbPath = join(documentsDirectory.path, _dbName);
-    if (await File(dbPath).exists()) {
-      debugPrint("Database already exists at $dbPath");
-      return;
-    }
-    try {
-      ByteData data = await rootBundle.load('assets/cards.db');
-      List<int> bytes = data.buffer.asUint8List();
-      await File(dbPath).writeAsBytes(bytes);
-      _database = null;
-      _initialized = false;
-      debugPrint("Imported cards.db from assets");
-    } catch (e) {
-      debugPrint("Error importing database: $e");
-    }
+    kLog('FSRS schema created');
   }
 }

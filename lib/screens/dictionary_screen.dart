@@ -3,6 +3,7 @@ import 'dart:async';
 import '../helpers/dictionary_helper.dart';
 import 'word_details.dart';
 import '../widgets/furigana.dart';
+import '../helpers/logger.dart';
 
 class DictionaryScreen extends StatefulWidget {
   const DictionaryScreen({super.key});
@@ -40,7 +41,7 @@ class DictionaryScreenState extends State<DictionaryScreen> {
       });
 
       try {
-        debugPrint('Searching for: "$query"');
+        kLog('Searching for: "$query"');
         final db = await DictionaryHelper.getDatabase();
         String queryTrimmed = query.trim();
         String searchTerm = "$queryTrimmed*";
@@ -120,7 +121,7 @@ class DictionaryScreenState extends State<DictionaryScreen> {
           searchTerm,          // 6. Gloss FTS
         ]);
 
-        debugPrint('Found ${results.length} results');
+        kLog('Found ${results.length} results');
 
         if (mounted) {
           setState(() {
@@ -129,7 +130,7 @@ class DictionaryScreenState extends State<DictionaryScreen> {
           });
         }
       } catch (e) {
-        debugPrint('FTS search error: $e');
+        kLog('FTS search error: $e');
         // Let the user know something went wrong
         setState(() {
           _isLoading = false;
@@ -241,7 +242,7 @@ class DictionaryScreenState extends State<DictionaryScreen> {
         ),
         child: InkWell(
           onTap: () {
-            debugPrint('Selected entry: $entry');
+            kLog('Selected entry: $entry');
             _showEntryDetails(context, entry);
           },
           borderRadius: BorderRadius.circular(25.0),

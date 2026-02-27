@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../../helpers/dictionary/dict_database.dart';
+import '../../helpers/logger.dart';
 
 class DictionarySearchService {
   static Future<List<Map<String, dynamic>>> searchByKanji(String query, {int limit = 20}) async {
@@ -15,7 +16,7 @@ class DictionarySearchService {
       
       return results;
     } catch (e) {
-      debugPrint('Error searching kanji: $e');
+      kLog('Error searching kanji: $e');
       return [];
     }
   }
@@ -33,7 +34,7 @@ class DictionarySearchService {
       
       return results;
     } catch (e) {
-      debugPrint('Error searching reading: $e');
+      kLog('Error searching reading: $e');
       return [];
     }
   }
@@ -51,7 +52,7 @@ class DictionarySearchService {
       
       return results;
     } catch (e) {
-      debugPrint('Error searching meaning: $e');
+      kLog('Error searching meaning: $e');
       return [];
     }
   }

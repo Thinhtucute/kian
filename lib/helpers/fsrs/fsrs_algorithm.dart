@@ -2,9 +2,10 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
+import '../logger.dart';
 
 class FSRSAlgorithm {
-  // Weights 
+  // Weights, comments are default weights
   // Initial stability for Again
   static const double w0 = 0.212;    // 0.1747
   // Initial stability for Hard
@@ -234,7 +235,7 @@ class FSRSAlgorithm {
             tempStability = nextRecallStability(tempDifficulty, tempStability, retrievability, "good");
             interval = calculateNextInterval(tempStability);
             simulatedElapsed = interval;
-            debugPrint('Simulated review:'
+            kLog('Simulated review:'
               ' retrievability=${retrievability.toStringAsFixed(2)},'
               ' stability=${tempStability.toStringAsFixed(2)}'
             );

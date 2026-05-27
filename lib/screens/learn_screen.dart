@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import '../widgets/card_widget.dart';
-import '../widgets/session_stats.dart';
-import '../services/cloud/auth_service.dart';
-import '../services/fsrs/export_service.dart';
-import '../services/fsrs/learn_session.dart';
+import 'package:kian/widgets/card_widget.dart';
+import 'package:kian/widgets/session_stats.dart';
+import 'package:kian/services/cloud/auth_service.dart';
+import 'package:kian/features/fsrs/application/export_service.dart';
+import 'package:kian/features/fsrs/application/learn_session.dart';
 import 'package:provider/provider.dart';
-import '../models/session_model.dart';
-import '../models/sync_model.dart';
+import 'package:kian/models/session_model.dart';
+import 'package:kian/models/sync_model.dart';
 
 class LearnScreen extends StatefulWidget {
   const LearnScreen({super.key});
@@ -38,13 +38,36 @@ class LearnScreenState extends State<LearnScreen> {
 
   void _startTimer() {
     _sessionTimer = Timer.periodic(Duration(seconds: 1), (timer) {
-      final session = Provider.of<LearnSessionModel>(context, listen: false);
-      session.incrementSessionDuration();
+      context.read<LearnSessionModel>().incrementSessionDuration();
     });
   }
 
   Future<void> _loadCards({bool forceReload = false}) async {
-    await LearnSessionService.loadCards(context, forceReload: forceReload);
+    final session = context.read<LearnSessionModel>();
+    await LearnSessionService.loadCards(session, forceReload: forceReload);
+  }
+
+  // The session-complete dialog lives here in the screen, the service calls onSessionComplete() to notify
+  void _showSessionCompleteDialog() {
+    if (!mounted) return;
+    final session = context.read<LearnSessionModel>();
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Review Session Complete'),
+          content: Text(
+            'You reviewed ${session.cardsReviewed} cards in ${_formatDuration(session.sessionDuration)}',
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Close'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _exportData() async {
@@ -111,7 +134,13 @@ class LearnScreenState extends State<LearnScreen> {
   }
 
   Future<void> _onGoodPressed(bool isGood) async {
-    await LearnSessionService.processRating(context, isGood, _sessionTimer);
+    final session = context.read<LearnSessionModel>();
+    await LearnSessionService.processRating(
+      session,
+      isGood,
+      _sessionTimer,
+      onSessionComplete: _showSessionCompleteDialog,
+    );
   }
 
   String _formatDuration(int seconds) {
@@ -265,7 +294,7 @@ class LearnScreenState extends State<LearnScreen> {
               event.logicalKey == LogicalKeyboardKey.enter ||
               event.logicalKey == LogicalKeyboardKey.numpadEnter
           )) {
-            LearnSessionService.showAnswer(context);
+            LearnSessionService.showAnswer(session);
           }
           else if (session.showingAnswer && (
               event.logicalKey == LogicalKeyboardKey.digit2 ||
@@ -307,7 +336,8 @@ class LearnScreenState extends State<LearnScreen> {
               meanings: session.meanings,
               examples: session.examples,
               showAnswer: session.showingAnswer,
-              onShowAnswer: () => LearnSessionService.showAnswer(context),
+              onShowAnswer: () => LearnSessionService.showAnswer(session),
+              languageTag: currentCard['lang']?.toString() ?? '',
             ),
           ),
 

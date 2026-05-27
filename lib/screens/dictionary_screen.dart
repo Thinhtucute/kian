@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import '../helpers/dictionary_helper.dart';
-import 'word_details.dart';
-import '../widgets/furigana.dart';
-import '../helpers/logger.dart';
+import 'package:kian/features/dictionary/domain/dictionary_helper.dart';
+import 'word_details_screen.dart';
+import 'package:kian/widgets/reading_text.dart';
+import 'package:kian/core/logger.dart';
 
 class DictionaryScreen extends StatefulWidget {
   const DictionaryScreen({super.key});
@@ -17,6 +17,12 @@ class DictionaryScreenState extends State<DictionaryScreen> {
   List<Map<String, dynamic>> _results = [];
   Timer? _debounceTimer;
   bool _isLoading = false;
+  String _selectedLanguageTag = 'jp';
+
+  static const List<_LanguageOption> _languageOptions = [
+    _LanguageOption(label: 'Japanese', value: 'jp'),
+    _LanguageOption(label: 'Chinese', value: 'cn'),
+  ];
 
   @override
   void dispose() {
@@ -42,84 +48,10 @@ class DictionaryScreenState extends State<DictionaryScreen> {
 
       try {
         kLog('Searching for: "$query"');
-        final db = await DictionaryHelper.getDatabase();
-        String queryTrimmed = query.trim();
-        String searchTerm = "$queryTrimmed*";
-
-        // Parameters for the query (in order of appearance):
-        // 1. k.keb = ? (exact match for kanji)
-        // 2. kanji_fts.keb MATCH ? (FTS match for kanji)
-        // 3. reading_fts.reb MATCH ? (FTS match for reading)
-        // 4. g.gloss LIKE ? (exact gloss match)
-        // 5. g.gloss LIKE ? (gloss prefix match)
-        // 6. gloss_fts.gloss MATCH ? (FTS match for gloss)
-        final results = await db.rawQuery("""
-          WITH combined_results AS (
-            SELECT DISTINCT k.ent_seq, k.keb, r.reb, g.gloss,
-              0 as rank,
-              COALESCE(k.keb, '') || COALESCE(r.reb, '') as dedup_key
-            FROM kanji_element k
-            LEFT JOIN reading_element r ON k.ent_seq = r.ent_seq
-            LEFT JOIN sense s ON k.ent_seq = s.ent_seq
-            LEFT JOIN gloss g ON s.id = g.sense_id
-            WHERE k.keb = ?
-
-            UNION
-            
-            SELECT DISTINCT k.ent_seq, k.keb, r.reb, g.gloss,
-              1 as rank,
-              COALESCE(k.keb, '') || COALESCE(r.reb, '') as dedup_key
-            FROM kanji_fts 
-            JOIN kanji_element k ON kanji_fts.rowid = k.id
-            LEFT JOIN reading_element r ON k.ent_seq = r.ent_seq
-            LEFT JOIN sense s ON k.ent_seq = s.ent_seq
-            LEFT JOIN gloss g ON s.id = g.sense_id
-            WHERE kanji_fts.keb MATCH ?
-    
-            UNION
-    
-            SELECT DISTINCT r.ent_seq, k.keb, r.reb, g.gloss,
-              2 as rank,
-              COALESCE(k.keb, '') || COALESCE(r.reb, '') as dedup_key
-            FROM reading_fts 
-            JOIN reading_element r ON reading_fts.rowid = r.id
-            LEFT JOIN kanji_element k ON r.ent_seq = k.ent_seq
-            LEFT JOIN sense s ON r.ent_seq = s.ent_seq
-            LEFT JOIN gloss g ON s.id = g.sense_id
-            WHERE reading_fts.reb MATCH ?
-    
-            UNION
-    
-            SELECT DISTINCT s.ent_seq, k.keb, r.reb, g.gloss,
-              CASE 
-                WHEN g.gloss LIKE ? THEN 3
-                WHEN g.gloss LIKE ? THEN 4
-                ELSE 5
-              END as rank,
-              COALESCE(k.keb, '') || COALESCE(r.reb, '') as dedup_key
-            FROM gloss_fts 
-            JOIN gloss g ON gloss_fts.rowid = g.id
-            JOIN sense s ON g.sense_id = s.id
-            LEFT JOIN kanji_element k ON s.ent_seq = k.ent_seq
-            LEFT JOIN reading_element r ON s.ent_seq = r.ent_seq
-            WHERE gloss_fts.gloss MATCH ?
-          )
-  
-          SELECT ent_seq, keb, reb, gloss FROM (
-            SELECT *, ROW_NUMBER() OVER (PARTITION BY dedup_key ORDER BY rank ASC) as row_num
-            FROM combined_results
-          )
-          WHERE row_num = 1 AND ent_seq IS NOT NULL
-          ORDER BY rank ASC, LENGTH(gloss) ASC
-          LIMIT 50
-        """, [
-          queryTrimmed,        // 1. Exact kanji match
-          searchTerm,          // 2. Kanji FTS
-          searchTerm,          // 3. Reading FTS
-          queryTrimmed,        // 4. Exact gloss
-          'to $queryTrimmed%', // 5. Gloss prefix
-          searchTerm,          // 6. Gloss FTS
-        ]);
+        final results = await DictionaryHelper.searchAll(
+          query.trim(),
+          languageTag: _selectedLanguageTag,
+        );
 
         kLog('Found ${results.length} results');
 
@@ -168,18 +100,56 @@ class DictionaryScreenState extends State<DictionaryScreen> {
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.only(top: 15.0, left: 25.0, right: 25.0),
-      child: TextField(
-        controller: _searchController,
-        decoration: InputDecoration(
-          hintText: 'Search...',
-          hintStyle: TextStyle(color: Colors.grey),
-          enabledBorder: _buildBorder(Colors.grey),
-          focusedBorder: _buildBorder(Colors.white),
-          filled: false,
-          contentPadding: EdgeInsets.symmetric(horizontal: 16.0),
-        ),
-        style: TextStyle(color: Colors.white),
-        onChanged: _searchDictionary,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search...',
+                hintStyle: TextStyle(color: Colors.grey),
+                enabledBorder: _buildBorder(Colors.grey),
+                focusedBorder: _buildBorder(Colors.white),
+                filled: false,
+                contentPadding: EdgeInsets.symmetric(horizontal: 16.0),
+              ),
+              style: TextStyle(color: Colors.white),
+              onChanged: _searchDictionary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          DropdownButtonHideUnderline(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: Colors.grey, width: 2),
+              ),
+              child: DropdownButton<String>(
+                value: _selectedLanguageTag,
+                dropdownColor: const Color.fromARGB(255, 9, 12, 43),
+                iconEnabledColor: Colors.white,
+                style: const TextStyle(color: Colors.white),
+                items: _languageOptions
+                    .map(
+                      (option) => DropdownMenuItem<String>(
+                        value: option.value,
+                        child: Text(option.label),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null || value == _selectedLanguageTag) return;
+                  setState(() {
+                    _selectedLanguageTag = value;
+                  });
+                  _searchDictionary(_searchController.text);
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -231,7 +201,7 @@ class DictionaryScreenState extends State<DictionaryScreen> {
   }
 
   Widget _buildResultCard(Map<String, dynamic> entry) {
-    final bool isKanaOnly = entry['keb'] == null;
+    final bool isReadingOnly = entry['headword'] == null;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 10.0),
@@ -253,9 +223,9 @@ class DictionaryScreenState extends State<DictionaryScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 // For kana-only words, use a simpler display
-                isKanaOnly
+                isReadingOnly
                     ? Text(
-                        entry['reb'] ?? '',
+                        entry['reading'] ?? '',
                         style: TextStyle(
                           fontSize: 24,
                           color: Colors.white,
@@ -263,8 +233,9 @@ class DictionaryScreenState extends State<DictionaryScreen> {
                         ),
                       )
                     : FuriganaText(
-                        kanji: entry['keb'] ?? '',
-                        reading: entry['reb'] ?? '',
+                        kanji: entry['headword'] ?? '',
+                        reading: entry['reading'] ?? '',
+                        languageTag: entry['lang']?.toString() ?? '',
                         kanjiStyle: TextStyle(
                           fontSize: 24,
                           color: Colors.white,
@@ -299,8 +270,18 @@ class DictionaryScreenState extends State<DictionaryScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => WordDetailsScreen(entry: entry),
+        builder: (context) => WordDetailsScreen(
+          entry: entry,
+          languageTag: entry['lang']?.toString() ?? _selectedLanguageTag,
+        ),
       ),
     );
   }
+}
+
+class _LanguageOption {
+  final String label;
+  final String value;
+
+  const _LanguageOption({required this.label, required this.value});
 }

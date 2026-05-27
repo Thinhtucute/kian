@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../models/session_model.dart';
+import 'package:kian/models/session_model.dart';
 
 class SessionStatsPopup extends StatelessWidget {
   final LearnSessionModel session;

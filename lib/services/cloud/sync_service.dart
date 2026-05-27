@@ -1,10 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter/foundation.dart';
 import 'supabase_service.dart';
 import 'auth_service.dart';
-import '../../helpers/fsrs/fsrs_algorithm.dart';
-import '../fsrs/card_fetcher.dart';
-import '../../helpers/logger.dart';
+import 'package:kian/features/fsrs/domain/fsrs_algorithm.dart';
+import 'package:kian/features/fsrs/data/repositories/fsrs_repository.dart';
+import 'package:kian/core/logger.dart';
 
 class FSRSSyncService {
   static SupabaseClient get _client => SupabaseService.client;
@@ -14,7 +13,7 @@ class FSRSSyncService {
     if (userId == null) {
       throw Exception('User not authenticated');
     }
-    
+
     final response = await _client
         .from('cards')
         .select()
@@ -23,18 +22,18 @@ class FSRSSyncService {
     return response.count;
   }
 
-  static Future<Map<String, dynamic>?> getCard(int entSeq) async {
+  static Future<Map<String, dynamic>?> getCard(int entryId) async {
     final userId = AuthService.currentUserId;
     if (userId == null) {
       throw Exception('User not authenticated');
     }
-    
+
     try {
       final response = await _client
           .from('cards')
           .select()
           .eq('user_id', userId)
-          .eq('ent_seq', entSeq)
+          .eq('entry_id', entryId)
           .single();
       return response;
     } catch (e) {
@@ -50,7 +49,7 @@ class FSRSSyncService {
 
     await _client.from('cards').upsert({
       'user_id': userId,
-      'ent_seq': card['ent_seq'],
+      'entry_id': card['entry_id'],
       'type': card['type'],
       'queue': card['queue'],
       'due': card['due'],
@@ -89,24 +88,24 @@ class FSRSSyncService {
         if (userId == null) {
           throw Exception('User not authenticated');
         }
-        
-        final entSeqs = batch.map((card) => card['ent_seq'] as int).toList();
+
+        final entryIds = batch.map((card) => card['entry_id'] as int).toList();
         final response = await _client
             .from('cards')
             .select()
             .eq('user_id', userId)
-            .inFilter('ent_seq', entSeqs);
+            .inFilter('entry_id', entryIds);
 
         final cloudCards = List<Map<String, dynamic>>.from(response);
         final cloudCardsMap = {
-          for (var card in cloudCards) card['ent_seq'] as int: card
+          for (var card in cloudCards) card['entry_id'] as int: card
         };
 
         List<Map<String, dynamic>> cardsToUpload = [];
 
         for (final localCard in batch) {
-          final entSeq = localCard['ent_seq'] as int;
-          final cloudCard = cloudCardsMap[entSeq];
+          final entryId = localCard['entry_id'] as int;
+          final cloudCard = cloudCardsMap[entryId];
 
           bool shouldUpload = false;
 
@@ -130,7 +129,7 @@ class FSRSSyncService {
           final supabaseCards = cardsToUpload
               .map((card) => {
                     'user_id': userId,
-                    'ent_seq': card['ent_seq'],
+                    'entry_id': card['entry_id'],
                     'type': card['type'],
                     'queue': card['queue'],
                     'due': card['due'],
@@ -143,9 +142,7 @@ class FSRSSyncService {
                   })
               .toList();
 
-          await _client
-              .from('cards')
-              .upsert(supabaseCards);
+          await _client.from('cards').upsert(supabaseCards);
           uploaded += cardsToUpload.length;
           kLog('↑ Batch uploaded ${cardsToUpload.length} cards');
         }
@@ -196,12 +193,12 @@ class FSRSSyncService {
         if (userId == null) {
           throw Exception('User not authenticated');
         }
-        
+
         final response = await _client
             .from('cards')
             .select()
             .eq('user_id', userId)
-            .order('ent_seq', ascending: true)
+            .order('entry_id', ascending: true)
             .range(offset, offset + batchSize - 1);
 
         final batch = List<Map<String, dynamic>>.from(response);
@@ -213,22 +210,22 @@ class FSRSSyncService {
             throw Exception('Sync cancelled');
           }
           try {
-            final entSeq = cloudCard['ent_seq'] as int;
+            final entryId = cloudCard['entry_id'] as int;
 
             final shouldDownload = await shouldDownloadCallback(cloudCard);
 
             if (shouldDownload) {
               await _saveCloudCardToLocal(cloudCard);
               downloaded++;
-              kLog('⬇ Downloaded card $entSeq (newer cloud version)');
+              kLog('⬇ Downloaded card $entryId (newer cloud version)');
             } else {
               skipped++;
-              kLog('→ Skipped card $entSeq (local same/newer)');
+              kLog('→ Skipped card $entryId (local same/newer)');
             }
           } catch (e) {
             errors++;
-            errorDetails.add('Card ${cloudCard['ent_seq']}: $e');
-            kLog('❌ Error downloading card ${cloudCard['ent_seq']}: $e');
+            errorDetails.add('Card ${cloudCard['entry_id']}: $e');
+            kLog('❌ Error downloading card ${cloudCard['entry_id']}: $e');
           }
 
           processedCount++;
@@ -258,7 +255,7 @@ class FSRSSyncService {
   static Future<void> _saveCloudCardToLocal(
       Map<String, dynamic> cloudCard) async {
     final localFormatCard = {
-      'ent_seq': cloudCard['ent_seq'],
+      'entry_id': cloudCard['entry_id'],
       'type': cloudCard['type'],
       'queue': cloudCard['queue'],
       'due': cloudCard['due'],
@@ -270,12 +267,11 @@ class FSRSSyncService {
       'difficulty': cloudCard['difficulty'],
     };
     // Save to local DB
-    await FSRSCardService.upsertCard(localFormatCard);
+    await FSRSRepository.upsertCard(localFormatCard);
   }
 
-  // Check if cloud has newer version
-  static Future<bool> isCloudNewer(int entSeq, double? localLastReview) async {
-    final cloudCard = await getCard(entSeq);
+  static Future<bool> isCloudNewer(int entryId, double? localLastReview) async {
+    final cloudCard = await getCard(entryId);
 
     if (cloudCard == null) return false;
 
@@ -335,13 +331,13 @@ class FSRSSyncService {
     }
   }
 
-  static Future<void> addCard(int entSeq) async {
+  static Future<void> addCard(int entryId) async {
     // Convert to days
     final now = (DateTime.now().millisecondsSinceEpoch / (1000 * 60 * 60 * 24));
 
     try {
       await _client.from('cards').insert({
-        'ent_seq': entSeq,
+        'entry_id': entryId,
         'type': 0,
         'queue': 0,
         'due': now,
@@ -352,7 +348,7 @@ class FSRSSyncService {
         'stability': 2.3065,
         'difficulty': 6.4133,
       });
-      kLog('Card $entSeq added to Supabase');
+      kLog('Card $entryId added to Supabase');
     } catch (e) {
       kLog('Error adding card to Supabase: $e');
       rethrow;
@@ -360,13 +356,13 @@ class FSRSSyncService {
   }
 
   static Future<void> processReview(
-    int entSeq,
+    int entryId,
     bool isGood, {
     int? reviewDuration,
   }) async {
     try {
       final cardResponse =
-          await _client.from('cards').select().eq('ent_seq', entSeq).single();
+          await _client.from('cards').select().eq('entry_id', entryId).single();
 
       final card = cardResponse;
       final now =
@@ -381,7 +377,7 @@ class FSRSSyncService {
       }
 
       final result = FSRSAlgorithm().processReview(
-        entSeq: entSeq,
+        entryId: entryId,
         type: card['type'],
         queue: card['queue'],
         left: card['left_steps'],
@@ -406,19 +402,19 @@ class FSRSSyncService {
         'left_steps': newLeft,
         'stability': result['stability'],
         'difficulty': result['difficulty'],
-      }).eq('ent_seq', entSeq);
+      }).eq('entry_id', entryId);
 
-      kLog('Card $entSeq review processed in Supabase');
+      kLog('Card $entryId review processed in Supabase');
     } catch (e) {
       kLog('Error processing review in Supabase: $e');
       rethrow;
     }
   }
 
-  static Future<Map<String, dynamic>> getPredictedIntervals(int entSeq) async {
+  static Future<Map<String, dynamic>> getPredictedIntervals(int entryId) async {
     try {
       final cardResponse =
-          await _client.from('cards').select().eq('ent_seq', entSeq).single();
+          await _client.from('cards').select().eq('entry_id', entryId).single();
 
       final card = cardResponse;
       final now =
@@ -433,7 +429,7 @@ class FSRSSyncService {
       }
 
       final intervals = FSRSAlgorithm().previewIntervals(
-        entSeq: entSeq,
+        entryId: entryId,
         type: card['type'],
         queue: card['queue'],
         left: card['left_steps'],

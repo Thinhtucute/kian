@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'furigana.dart';
+import 'reading_text.dart';
 
 class ReviewCardWidget extends StatelessWidget {
   final Map<String, dynamic> card;
@@ -7,19 +7,33 @@ class ReviewCardWidget extends StatelessWidget {
   final List<Map<String, dynamic>> examples;
   final bool showAnswer;
   final VoidCallback? onShowAnswer;
+  final String languageTag;
 
   const ReviewCardWidget({
     super.key,
     required this.card,
     required this.meanings,
     required this.examples,
+    required this.languageTag,
     this.showAnswer = false,
     this.onShowAnswer,
   });
 
   @override
   Widget build(BuildContext context) {
-    final hasKanji = card['keb'] != null;
+    final hasKanji = card['headword'] != null;
+    final usesReadingAbove = hasKanji &&
+      (languageTag == 'jp' ||
+        languageTag.startsWith('cn'));
+
+    final String displayReading;
+    if (languageTag == 'jp') {
+      displayReading = (card['reading'] ?? '').toString();
+    } else if (languageTag.startsWith('cn')) {
+      displayReading = (card['reading'] ?? '').toString();
+    } else {
+      displayReading = (card['reading'] ?? '').toString();
+    }
 
     return Padding(
       padding: EdgeInsets.all(16),
@@ -34,17 +48,29 @@ class ReviewCardWidget extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Kanji/Reading display
+              // Headword + reading (reading on top, smaller)
               Expanded(
                 flex: showAnswer ? 1 : 2,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    if (!usesReadingAbove && displayReading.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6.0),
+                        child: Text(
+                          displayReading,
+                          style: TextStyle(
+                            fontSize: 20,
+                            color: Colors.lightBlueAccent,
+                          ),
+                        ),
+                      ),
                     Center(
-                      child: hasKanji
+                        child: usesReadingAbove
                           ? FuriganaText(
-                              kanji: card['keb'],
-                              reading: showAnswer ? card['reb'] ?? '' : '',
+                              kanji: card['headword'],
+                              reading: showAnswer ? displayReading : '',
+                              languageTag: languageTag,
                               kanjiStyle: TextStyle(
                                 fontSize: 48,
                                 color: Colors.white,
@@ -57,7 +83,7 @@ class ReviewCardWidget extends StatelessWidget {
                               ),
                             )
                           : SelectableText(
-                              card['reb'] ?? '',
+                              card['headword'] ?? card['reading'] ?? '',
                               style: TextStyle(
                                 fontSize: 48,
                                 color: Colors.white,
@@ -69,6 +95,21 @@ class ReviewCardWidget extends StatelessWidget {
                 ),
               ),
               Divider(color: Colors.grey[700]),
+              if (languageTag.isNotEmpty)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Text(
+                      languageTag,
+                      style: TextStyle(
+                        color: Colors.grey[500],
+                        fontSize: 12,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                ),
               // Answer area
               Expanded(
                 flex: showAnswer ? 3 : 2,

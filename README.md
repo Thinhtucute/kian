@@ -1,6 +1,6 @@
 # Kian - Flashcard App for Japanese Vocabulary
 
-Anki-clone cross-platform Flutter application for learning Japanese using spaced repetition (FSRS algorithm) with cloud synchronization.
+Anki-clone cross-platform Flutter application for learning Japanese and Chinese using spaced repetition (FSRS algorithm) with cloud synchronization.
 
 ## 🌟 What's in the app
 
@@ -77,70 +77,6 @@ flutter build appbundle --release
 ```
 Output: `build\app\outputs\bundle\release\app-release.aab`
 
-## 🗄️ Database Setup
-
-### Supabase Configuration
-
-1. Create a Supabase project at [supabase.com](https://supabase.com)
-
-2. Run this SQL in the Supabase SQL Editor:
-
-```sql
--- Create cards table with user isolation
-CREATE TABLE cards (
-  id BIGSERIAL,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  ent_seq INTEGER NOT NULL,
-  type INTEGER NOT NULL DEFAULT 0,
-  queue INTEGER NOT NULL DEFAULT 0,
-  due DOUBLE PRECISION NOT NULL,
-  last_review DOUBLE PRECISION,
-  reps INTEGER NOT NULL DEFAULT 0,
-  lapses INTEGER NOT NULL DEFAULT 0,
-  left_steps INTEGER NOT NULL DEFAULT 2,
-  stability DOUBLE PRECISION NOT NULL DEFAULT 2.3065,
-  difficulty DOUBLE PRECISION NOT NULL DEFAULT 6.4133,
-  PRIMARY KEY (user_id, ent_seq)
-);
-
--- Enable Row Level Security
-ALTER TABLE cards ENABLE ROW LEVEL SECURITY;
-
--- Create RLS policies
-CREATE POLICY "Users can view their own cards"
-  ON cards FOR SELECT
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own cards"
-  ON cards FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own cards"
-  ON cards FOR UPDATE
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own cards"
-  ON cards FOR DELETE
-  USING (auth.uid() = user_id);
-
--- Create profiles table (optional)
-CREATE TABLE profiles (
-  id UUID REFERENCES auth.users(id) PRIMARY KEY,
-  full_name TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view their own profile"
-  ON profiles FOR SELECT
-  USING (auth.uid() = id);
-```
-
-3. **Disable Email Confirmation** (for development):
-   - Go to Authentication → Providers → Email
-   - Uncheck "Confirm email"
-
 ## 📱 Usage
 
 ### First Time Setup
@@ -184,30 +120,6 @@ dependencies:
   flutter_dotenv: ^5.2.1       # Environment variables
 ```
 
-## 🔧 Project Structure
-```
-lib/
-├── main.dart                    # App entry point
-├── models/                      # Data models
-├── screens/                     # UI screens
-│   ├── login_screen.dart
-│   ├── signup_screen.dart
-│   ├── learn_screen.dart
-│   └── dictionary_screen.dart
-├── services/
-│   ├── cloud/                   # Supabase integration
-│   │   ├── auth_service.dart    # Authentication
-│   │   ├── sync_service.dart    # Cloud sync logic
-│   │   └── sync_manager.dart    # Sync UI coordination
-│   └── fsrs/                    # Spaced repetition
-│       ├── card_fetcher.dart
-│       └── review_service.dart
-├── helpers/
-│   ├── fsrs_helper.dart         # FSRS utilities
-│   └── dictionary_helper.dart   # Dictionary queries
-└── widgets/                     # Reusable components
-```
-
 ## 📦 Download
 
 ### Latest Release
@@ -229,6 +141,12 @@ used under the Creative Commons Attribution–ShareAlike 4.0 License (CC BY-SA 4
 
 More information: https://www.edrdg.org/wiki/index.php/JMdict-EDICT_Dictionary_Project
 
+### CEDICT / Unihan
+
+This project uses data from CEDICT and the Unihan Database. CEDICT provides Mandarin headwords and pinyin romanizations used by the app, and the Unihan Database supplies character metadata (readings, definitions, stroke counts, radicals, and other fields).
+
+More information: https://www.mdbg.net/chinese/dictionary?page=cedict and https://www.unicode.org/charts/unihan.html
+
 ### FSRS Algorithm
 
 This project includes a custom Dart implementation based on the FSRS (Free Spaced Repetition Scheduler) algorithm by Open Spaced Repetition: https://github.com/open-spaced-repetition/fsrs-rs
@@ -239,4 +157,4 @@ Powered by Supabase, a serverless backend service provider and an open-source Fi
 
 ---
 
-***Note**: This app requires an internet connection for the initial login and for syncing. Offline learning is available once you are logged in and your cards have been downloaded/initially synced.*
+*This app requires an internet connection for the initial login and for syncing. Offline learning is available once you are logged in and your cards have been downloaded/initially synced.*

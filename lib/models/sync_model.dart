@@ -1,4 +1,4 @@
-import '../services/cloud/sync_manager.dart';
+import 'package:kian/services/cloud/sync_manager.dart';
 import 'package:flutter/material.dart';
 
 class SyncModel extends ChangeNotifier {

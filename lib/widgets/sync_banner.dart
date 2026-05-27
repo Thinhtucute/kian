@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/sync_model.dart';
+import 'package:kian/models/sync_model.dart';
 
 class SyncBanner extends StatelessWidget {
   const SyncBanner({super.key});

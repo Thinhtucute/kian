@@ -1,4 +1,4 @@
-import '../../helpers/fsrs_helper.dart';
+import 'package:kian/features/fsrs/domain/fsrs_helper.dart';
 
 class SyncResult {
   final bool success;

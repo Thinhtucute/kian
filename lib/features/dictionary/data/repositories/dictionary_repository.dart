@@ -1,5 +1,10 @@
-import 'package:kian/features/dictionary/data/local/dictionary_database.dart';
 import 'package:kian/core/logger.dart';
+import 'package:kian/features/dictionary/data/local/dictionary_database.dart';
+import 'package:kian/features/dictionary/domain/entry_model.dart';
+import 'package:kian/features/dictionary/domain/entry_presentation_mapper.dart';
+import 'package:kian/features/dictionary/domain/example_model.dart';
+import 'package:kian/features/dictionary/domain/headword_model.dart';
+import 'package:kian/features/dictionary/domain/sense_model.dart';
 
 class DictionaryRepository {
   static const String _defaultLanguageTag = 'jp';
@@ -23,7 +28,7 @@ class DictionaryRepository {
     return null;
   }
 
-  static String? _firstHeadwordByScript(
+  static Map<String, Object?>? _firstHeadwordRowByScript(
     List<Map<String, Object?>> headwords,
     String script,
   ) {
@@ -31,22 +36,26 @@ class DictionaryRepository {
       if (row['script']?.toString() == script) {
         final text = row['text']?.toString().trim();
         if (text != null && text.isNotEmpty) {
-          return text;
+          return row;
         }
       }
     }
     return null;
   }
 
-  static String? _firstHeadwordByScripts(
+  static Map<String, Object?>? _firstHeadwordRow(
     List<Map<String, Object?>> headwords,
-    List<String> scripts,
   ) {
-    for (final script in scripts) {
-      final value = _firstHeadwordByScript(headwords, script);
-      if (value != null) return value;
-    }
-    return null;
+    return _firstHeadwordRowByScript(headwords, 'cjk') ??
+        (() {
+          for (final row in headwords) {
+            final text = row['text']?.toString().trim();
+            if (text != null && text.isNotEmpty) {
+              return row;
+            }
+          }
+          return null;
+        })();
   }
 
   static String? _firstReadingByLanguage(
@@ -85,6 +94,18 @@ class DictionaryRepository {
     return "h.script = 'kana' OR (h.script = 'romanization' AND h.romanization_type = 'pinyin-numeric')";
   }
 
+  static String _readingScriptClause(String languageTag) {
+    if (languageTag == 'jp') {
+      return "h.script = 'kana'";
+    }
+
+    if (languageTag == 'cn') {
+      return "h.script = 'romanization' AND h.romanization_type = 'pinyin-numeric'";
+    }
+
+    return "h.script IN ('kana', 'romaji', 'romanization')";
+  }
+
   static List<String> _collectStrings(
     List<Map<String, Object?>> rows,
     String key,
@@ -118,102 +139,7 @@ class DictionaryRepository {
     return '${query}*';
   }
 
-  static Map<String, dynamic> _buildEntryResult({
-    required int entryId,
-    required List<Map<String, Object?>> headwords,
-    required List<Map<String, Object?>> senses,
-    required String lang,
-  }) {
-    final headword = _firstHeadwordByScript(headwords, 'cjk') ??
-      _firstString(headwords, 'text');
-    final reading = _firstReadingByLanguage(headwords, lang);
-    final glosses = _collectStrings(senses, 'definitions');
-
-    return {
-      'entry_id': entryId,
-      'headword': headword,
-      'reading': reading,
-      'gloss': glosses.isNotEmpty ? glosses.join('； ') : null,
-      'is_reading_only': headword == null,
-      'lang': lang,
-    };
-  }
-
-  static Future<Map<String, dynamic>?> getEntryById(
-    int entryId, {
-    String languageTag = _defaultLanguageTag,
-  }) async {
-    try {
-      final db = await DictionaryDatabase.getDatabase();
-      final resolvedLanguageTag = _resolveLanguageTag(languageTag);
-
-      kLog('Looking up dictionary entry: $entryId ($resolvedLanguageTag)');
-
-      final entryRows = await db.rawQuery('''
-        SELECT e.id AS entry_id, e.lang AS lang
-        FROM entry e
-        WHERE e.id = ? AND e.lang = ?
-        LIMIT 1
-      ''', [entryId, resolvedLanguageTag]);
-
-      if (entryRows.isEmpty) {
-        kLog('No entry found with ID $entryId');
-        return null;
-      }
-
-      final headwords = await db.rawQuery('''
-        SELECT id, text, script, romanization_type, position, is_primary
-        FROM headword
-        WHERE entry_id = ?
-        ORDER BY is_primary DESC, position ASC, id ASC
-      ''', [entryId]);
-
-      final senses = await db.rawQuery('''
-        SELECT
-          s.id,
-          s.position,
-          GROUP_CONCAT(DISTINCT d.text) AS definitions,
-          GROUP_CONCAT(DISTINCT st.value) AS part_of_speech
-        FROM sense s
-        LEFT JOIN definition d ON d.sense_id = s.id
-        LEFT JOIN sense_tag st ON st.sense_id = s.id AND st.tag_type = 'pos'
-        WHERE s.entry_id = ? AND s.def_lang = ?
-        GROUP BY s.id, s.position
-        ORDER BY s.position ASC, s.id ASC
-      ''', [entryId, _definitionLanguageTag]);
-
-      final result = _buildEntryResult(
-        entryId: entryId,
-        headwords: headwords,
-        senses: senses,
-        lang: (entryRows.first['lang'] ?? resolvedLanguageTag).toString(),
-      );
-
-      kLog('Found entry: $result');
-      return result;
-    } catch (e) {
-      kLog('Error in getEntryById: $e');
-      return null;
-    }
-  }
-
-  static Future<List<Map<String, dynamic>>> getMultipleEntries(
-    List<int> entryIds, {
-    String languageTag = _defaultLanguageTag,
-  }) async {
-    if (entryIds.isEmpty) return [];
-
-    final results = <Map<String, dynamic>>[];
-    for (final id in entryIds) {
-      final entry = await getEntryById(id, languageTag: languageTag);
-      if (entry != null) {
-        results.add(entry);
-      }
-    }
-    return results;
-  }
-
-  static Future<List<Map<String, dynamic>>> _searchHeadwordFts({
+  static Future<List<Map<String, Object?>>> _searchHeadwordFts({
     required String query,
     required String languageTag,
     required String scriptClause,
@@ -223,10 +149,28 @@ class DictionaryRepository {
     final ftsQuery = _buildFtsQuery(query);
     final readingClause = _readingHeadwordWhereClause(languageTag);
 
-    return db.rawQuery('''
+    final results = await db.rawQuery('''
       SELECT DISTINCT
         e.id AS entry_id,
         e.lang AS lang,
+        (
+          SELECT COALESCE(
+            (
+              SELECT h.script
+              FROM headword h
+              WHERE h.entry_id = e.id AND h.script = 'cjk'
+              ORDER BY h.is_primary DESC, h.position ASC, h.id ASC
+              LIMIT 1
+            ),
+            (
+              SELECT h.script
+              FROM headword h
+              WHERE h.entry_id = e.id
+              ORDER BY h.is_primary DESC, h.position ASC, h.id ASC
+              LIMIT 1
+            )
+          )
+        ) AS script,
         (
           SELECT h.text
           FROM headword h
@@ -254,9 +198,11 @@ class DictionaryRepository {
       ORDER BY e.id ASC
       LIMIT ?
     ''', [_definitionLanguageTag, ftsQuery, languageTag, limit]);
+
+    return results;
   }
 
-  static Future<List<Map<String, dynamic>>> _searchHeadwordLike({
+  static Future<List<Map<String, Object?>>> _searchHeadwordLike({
     required String query,
     required String languageTag,
     required String scriptClause,
@@ -264,10 +210,29 @@ class DictionaryRepository {
   }) async {
     final db = await DictionaryDatabase.getDatabase();
     final readingClause = _readingHeadwordWhereClause(languageTag);
-    return db.rawQuery('''
+
+    final results = await db.rawQuery('''
       SELECT DISTINCT
         e.id AS entry_id,
         e.lang AS lang,
+        (
+          SELECT COALESCE(
+            (
+              SELECT h.script
+              FROM headword h
+              WHERE h.entry_id = e.id AND h.script = 'cjk'
+              ORDER BY h.is_primary DESC, h.position ASC, h.id ASC
+              LIMIT 1
+            ),
+            (
+              SELECT h.script
+              FROM headword h
+              WHERE h.entry_id = e.id
+              ORDER BY h.is_primary DESC, h.position ASC, h.id ASC
+              LIMIT 1
+            )
+          )
+        ) AS script,
         (
           SELECT h.text
           FROM headword h
@@ -294,9 +259,187 @@ class DictionaryRepository {
       ORDER BY e.id ASC
       LIMIT ?
     ''', [_definitionLanguageTag, '${query}%', languageTag, limit]);
+
+    return results;
   }
 
-  static Future<List<Map<String, dynamic>>> searchByKanji(
+  static Entry _buildEntryModelFromRow(
+    Map<String, Object?> row, {
+    required String languageTag,
+  }) {
+    return EntryPresentationMapper.buildEntryFromSource(row, languageTag: languageTag);
+  }
+
+  static Future<Entry?> getEntryModelById(
+    int entryId, {
+    String languageTag = _defaultLanguageTag,
+  }) async {
+    try {
+      final db = await DictionaryDatabase.getDatabase();
+      final resolvedLanguageTag = _resolveLanguageTag(languageTag);
+
+      final entryRows = await db.rawQuery('''
+        SELECT e.id AS entry_id, e.lang AS lang
+        FROM entry e
+        WHERE e.id = ? AND e.lang = ?
+        LIMIT 1
+      ''', [entryId, resolvedLanguageTag]);
+
+      if (entryRows.isEmpty) {
+        return null;
+      }
+
+      final headwords = await db.rawQuery('''
+        SELECT id, entry_id, text, script, romanization_type, position, is_primary
+        FROM headword
+        WHERE entry_id = ?
+        ORDER BY is_primary DESC, position ASC, id ASC
+      ''', [entryId]);
+
+      final senses = await db.rawQuery('''
+        SELECT
+          s.id,
+          s.entry_id,
+          s.position,
+          GROUP_CONCAT(DISTINCT d.text) AS definitions,
+          GROUP_CONCAT(DISTINCT st.value) AS part_of_speech
+        FROM sense s
+        LEFT JOIN definition d ON d.sense_id = s.id
+        LEFT JOIN sense_tag st ON st.sense_id = s.id AND st.tag_type = 'pos'
+        WHERE s.entry_id = ? AND s.def_lang = ?
+        GROUP BY s.id, s.entry_id, s.position
+        ORDER BY s.position ASC, s.id ASC
+      ''', [entryId, _definitionLanguageTag]);
+
+      final examples = await db.rawQuery('''
+        SELECT
+          s.id as sense_id,
+          ex.id as id,
+          ex.text as japanese_text,
+          ex.translation as english_translation,
+          ex.translation_lang as translation_lang,
+          ex.source as source
+        FROM sense s
+        JOIN example ex ON s.id = ex.sense_id
+        WHERE s.entry_id = ?
+          AND s.def_lang = ?
+          AND (ex.translation_lang = ? OR ex.translation_lang IS NULL)
+        ORDER BY s.position ASC, s.id ASC, ex.id ASC
+      ''', [entryId, _definitionLanguageTag, _translationLanguageTag]);
+
+      final headwordRow = _firstHeadwordRow(headwords);
+      final headword = headwordRow?['text']?.toString().trim();
+      final headwordScript = headwordRow?['script']?.toString();
+      final reading = _firstReadingByLanguage(headwords, resolvedLanguageTag);
+      final glosses = _collectStrings(senses, 'definitions');
+
+      final base = _buildEntryModelFromRow(
+        {
+          'entry_id': entryId,
+          'lang': (entryRows.first['lang'] ?? resolvedLanguageTag).toString(),
+          'headword': headword,
+          'headword_script': headwordScript,
+          'reading': reading,
+          'gloss': glosses.isNotEmpty ? glosses.join('； ') : null,
+          'is_reading_only': headword == null,
+        },
+        languageTag: resolvedLanguageTag,
+      );
+
+      return Entry(
+        entryId: base.entryId,
+        lang: base.lang,
+        headword: base.headword,
+        headwordScript: base.headwordScript,
+        reading: base.reading,
+        gloss: base.gloss,
+        isReadingOnly: base.isReadingOnly,
+        showReadingAbove: base.showReadingAbove,
+        displayHeadword: base.displayHeadword,
+        displayReading: base.displayReading,
+        headwords: EntryPresentationMapper.buildHeadwordListFromSource(headwords),
+        senses: EntryPresentationMapper.buildSenseListFromSource(senses),
+        examples: EntryPresentationMapper.buildExampleListFromSource(examples),
+      );
+    } catch (e) {
+      kLog('Error in getEntryModelById: $e');
+      return null;
+    }
+  }
+
+  static Future<List<Entry>> getMultipleEntryModels(
+    List<int> entryIds, {
+    String languageTag = _defaultLanguageTag,
+  }) async {
+    if (entryIds.isEmpty) return [];
+
+    final results = <Entry>[];
+    for (final id in entryIds) {
+      final entry = await getEntryModelById(id, languageTag: languageTag);
+      if (entry != null) {
+        results.add(entry);
+      }
+    }
+    return results;
+  }
+
+  static Future<List<Headword>> getHeadwordsModels(int entryId) async {
+    final db = await DictionaryDatabase.getDatabase();
+    final rows = await db.rawQuery('''
+      SELECT id, entry_id, text, script, romanization_type, position, is_primary
+      FROM headword
+      WHERE entry_id = ?
+      ORDER BY is_primary DESC, position ASC, id ASC
+    ''', [entryId]);
+    return EntryPresentationMapper.buildHeadwordListFromSource(rows);
+  }
+
+  static Future<List<Sense>> getMeaningsModels(
+    int entryId, {
+    String languageTag = _defaultLanguageTag,
+  }) async {
+    final db = await DictionaryDatabase.getDatabase();
+    final rows = await db.rawQuery('''
+      SELECT
+        s.id,
+        s.entry_id,
+        s.position,
+        GROUP_CONCAT(DISTINCT d.text) AS definitions,
+        GROUP_CONCAT(DISTINCT st.value) AS part_of_speech
+      FROM sense s
+      LEFT JOIN definition d ON d.sense_id = s.id
+      LEFT JOIN sense_tag st ON st.sense_id = s.id AND st.tag_type = 'pos'
+      WHERE s.entry_id = ? AND s.def_lang = ?
+      GROUP BY s.id, s.entry_id, s.position
+      ORDER BY s.position ASC, s.id ASC
+    ''', [entryId, _definitionLanguageTag]);
+    return EntryPresentationMapper.buildSenseListFromSource(rows);
+  }
+
+  static Future<List<Example>> getExamplesModels(
+    int entryId, {
+    String languageTag = _defaultLanguageTag,
+  }) async {
+    final db = await DictionaryDatabase.getDatabase();
+    final rows = await db.rawQuery('''
+      SELECT
+        s.id as sense_id,
+        ex.id as id,
+        ex.text as japanese_text,
+        ex.translation as english_translation,
+        ex.translation_lang as translation_lang,
+        ex.source as source
+      FROM sense s
+      JOIN example ex ON s.id = ex.sense_id
+      WHERE s.entry_id = ?
+        AND s.def_lang = ?
+        AND (ex.translation_lang = ? OR ex.translation_lang IS NULL)
+      ORDER BY s.position ASC, s.id ASC, ex.id ASC
+    ''', [entryId, _definitionLanguageTag, _translationLanguageTag]);
+    return EntryPresentationMapper.buildExampleListFromSource(rows);
+  }
+
+  static Future<List<Entry>> searchByKanjiModels(
     String query, {
     int limit = 20,
     String languageTag = _defaultLanguageTag,
@@ -311,15 +454,18 @@ class DictionaryRepository {
         limit: limit,
       );
 
-      if (results.isNotEmpty || !_isCjkQuery(query)) {
-        return results;
-      }
+      final mapResults = results.isNotEmpty || !_isCjkQuery(query)
+          ? results
+          : await _searchHeadwordLike(
+              query: query,
+              languageTag: resolvedLanguageTag,
+              scriptClause: scriptClause,
+              limit: limit,
+            );
 
-      return _searchHeadwordLike(
-        query: query,
+      return EntryPresentationMapper.buildEntryListFromSource(
+        mapResults,
         languageTag: resolvedLanguageTag,
-        scriptClause: scriptClause,
-        limit: limit,
       );
     } catch (e) {
       kLog('Error searching kanji: $e');
@@ -327,14 +473,14 @@ class DictionaryRepository {
     }
   }
 
-  static Future<List<Map<String, dynamic>>> searchByReading(
+  static Future<List<Entry>> searchByReadingModels(
     String query, {
     int limit = 20,
     String languageTag = _defaultLanguageTag,
   }) async {
     final resolvedLanguageTag = _resolveLanguageTag(languageTag);
     try {
-      final scriptClause = "h.script IN ('kana', 'romaji')";
+      final scriptClause = _readingScriptClause(resolvedLanguageTag);
       final results = await _searchHeadwordFts(
         query: query,
         languageTag: resolvedLanguageTag,
@@ -342,15 +488,18 @@ class DictionaryRepository {
         limit: limit,
       );
 
-      if (results.isNotEmpty || !_isCjkQuery(query)) {
-        return results;
-      }
+      final mapResults = results.isNotEmpty || !_isCjkQuery(query)
+          ? results
+          : await _searchHeadwordLike(
+              query: query,
+              languageTag: resolvedLanguageTag,
+              scriptClause: scriptClause,
+              limit: limit,
+            );
 
-      return _searchHeadwordLike(
-        query: query,
+      return EntryPresentationMapper.buildEntryListFromSource(
+        mapResults,
         languageTag: resolvedLanguageTag,
-        scriptClause: scriptClause,
-        limit: limit,
       );
     } catch (e) {
       kLog('Error searching reading: $e');
@@ -358,7 +507,7 @@ class DictionaryRepository {
     }
   }
 
-  static Future<List<Map<String, dynamic>>> searchByMeaning(
+  static Future<List<Entry>> searchByMeaningModels(
     String query, {
     int limit = 20,
     String languageTag = _defaultLanguageTag,
@@ -371,6 +520,24 @@ class DictionaryRepository {
         SELECT DISTINCT
           e.id AS entry_id,
           e.lang AS lang,
+          (
+            SELECT COALESCE(
+              (
+                SELECT h.script
+                FROM headword h
+                WHERE h.entry_id = e.id AND h.script = 'cjk'
+                ORDER BY h.is_primary DESC, h.position ASC, h.id ASC
+                LIMIT 1
+              ),
+              (
+                SELECT h.script
+                FROM headword h
+                WHERE h.entry_id = e.id
+                ORDER BY h.is_primary DESC, h.position ASC, h.id ASC
+                LIMIT 1
+              )
+            )
+          ) AS script,
           (
             SELECT h.text
             FROM headword h
@@ -400,44 +567,46 @@ class DictionaryRepository {
         LIMIT ?
       ''', [_definitionLanguageTag, '${query}*', resolvedLanguageTag, limit]);
 
-      return results;
+      return EntryPresentationMapper.buildEntryListFromSource(
+        results,
+        languageTag: resolvedLanguageTag,
+      );
     } catch (e) {
       kLog('Error searching meaning: $e');
       return [];
     }
   }
 
-  static Future<List<Map<String, dynamic>>> searchAll(
+  static Future<List<Entry>> searchAllModels(
     String query, {
     int limit = 20,
     String languageTag = _defaultLanguageTag,
   }) async {
     final perSearchLimit = limit ~/ 3;
     final searchLimit = perSearchLimit > 0 ? perSearchLimit : limit;
-    final kanjiResults = await searchByKanji(
+
+    final kanjiResults = await searchByKanjiModels(
       query,
       limit: searchLimit,
       languageTag: languageTag,
     );
-    final readingResults = await searchByReading(
+    final readingResults = await searchByReadingModels(
       query,
       limit: searchLimit,
       languageTag: languageTag,
     );
-    final meaningResults = await searchByMeaning(
+    final meaningResults = await searchByMeaningModels(
       query,
       limit: searchLimit,
       languageTag: languageTag,
     );
 
     final seenEntries = <int>{};
-    final combined = <Map<String, dynamic>>[];
+    final combined = <Entry>[];
 
     for (final resultList in [kanjiResults, readingResults, meaningResults]) {
       for (final result in resultList) {
-        final resolved = (result['entry_id']) as int;
-        if (!seenEntries.contains(resolved)) {
-          seenEntries.add(resolved);
+        if (seenEntries.add(result.entryId)) {
           combined.add(result);
           if (combined.length >= limit) break;
         }
@@ -446,47 +615,5 @@ class DictionaryRepository {
     }
 
     return combined;
-  }
-
-  static Future<List<Map<String, dynamic>>> getMeanings(
-    int entryId, {
-    String languageTag = _defaultLanguageTag,
-  }) async {
-    final db = await DictionaryDatabase.getDatabase();
-    return db.rawQuery("""
-      SELECT
-        s.id,
-        s.position,
-        GROUP_CONCAT(DISTINCT d.text) AS definitions,
-        GROUP_CONCAT(DISTINCT st.value) AS part_of_speech
-      FROM sense s
-      LEFT JOIN definition d ON d.sense_id = s.id
-      LEFT JOIN sense_tag st ON st.sense_id = s.id AND st.tag_type = 'pos'
-      WHERE s.entry_id = ? AND s.def_lang = ?
-      GROUP BY s.id, s.position
-      ORDER BY s.position ASC, s.id ASC
-    """, [entryId, _definitionLanguageTag]);
-  }
-
-  static Future<List<Map<String, dynamic>>> getExamples(
-    int entryId, {
-    String languageTag = _defaultLanguageTag,
-  }) async {
-    final db = await DictionaryDatabase.getDatabase();
-    return db.rawQuery("""
-      SELECT
-        s.id as sense_id,
-        ex.id as example_id,
-        ex.text as japanese_text,
-        ex.translation as english_translation,
-        ex.translation_lang as translation_lang,
-        ex.source as source
-      FROM sense s
-      JOIN example ex ON s.id = ex.sense_id
-      WHERE s.entry_id = ?
-        AND s.def_lang = ?
-        AND (ex.translation_lang = ? OR ex.translation_lang IS NULL)
-      ORDER BY s.position ASC, s.id ASC, ex.id ASC
-    """, [entryId, _definitionLanguageTag, _translationLanguageTag]);
   }
 }

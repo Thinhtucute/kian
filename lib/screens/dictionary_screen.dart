@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:kian/features/dictionary/domain/dictionary_helper.dart';
+import 'package:kian/features/dictionary/domain/entry_model.dart';
 import 'word_details_screen.dart';
 import 'package:kian/widgets/reading_text.dart';
 import 'package:kian/core/logger.dart';
@@ -14,7 +15,7 @@ class DictionaryScreen extends StatefulWidget {
 
 class DictionaryScreenState extends State<DictionaryScreen> {
   final TextEditingController _searchController = TextEditingController();
-  List<Map<String, dynamic>> _results = [];
+  List<Entry> _results = [];
   Timer? _debounceTimer;
   bool _isLoading = false;
   String _selectedLanguageTag = 'jp';
@@ -200,8 +201,11 @@ class DictionaryScreenState extends State<DictionaryScreen> {
     );
   }
 
-  Widget _buildResultCard(Map<String, dynamic> entry) {
-    final bool isReadingOnly = entry['headword'] == null;
+  Widget _buildResultCard(Entry entry) {
+    final bool isReadingOnly = entry.isReadingOnly;
+    final bool showReadingAbove = entry.showReadingAbove;
+    final String displayHeadword = entry.displayHeadword;
+    final String displayReading = entry.displayReading;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 10.0),
@@ -212,7 +216,7 @@ class DictionaryScreenState extends State<DictionaryScreen> {
         ),
         child: InkWell(
           onTap: () {
-            kLog('Selected entry: $entry');
+            kLog('Selected entry: ${entry.entryId}');
             _showEntryDetails(context, entry);
           },
           borderRadius: BorderRadius.circular(25.0),
@@ -225,34 +229,43 @@ class DictionaryScreenState extends State<DictionaryScreen> {
                 // For kana-only words, use a simpler display
                 isReadingOnly
                     ? Text(
-                        entry['reading'] ?? '',
+                        displayHeadword,
                         style: TextStyle(
                           fontSize: 24,
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
                       )
-                    : FuriganaText(
-                        kanji: entry['headword'] ?? '',
-                        reading: entry['reading'] ?? '',
-                        languageTag: entry['lang']?.toString() ?? '',
-                        kanjiStyle: TextStyle(
-                          fontSize: 24,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        readingStyle: TextStyle(
-                          fontSize: 14,
-                          color: Colors.lightBlueAccent,
-                        ),
-                      ),
+                    : showReadingAbove
+                        ? FuriganaText(
+                            kanji: displayHeadword,
+                            reading: displayReading,
+                            languageTag: entry.lang,
+                            kanjiStyle: TextStyle(
+                              fontSize: 24,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            readingStyle: TextStyle(
+                              fontSize: 14,
+                              color: Colors.lightBlueAccent,
+                            ),
+                          )
+                        : Text(
+                            displayHeadword,
+                            style: TextStyle(
+                              fontSize: 24,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
 
                 // Spacer between word and meaning
                 const SizedBox(height: 10.0),
 
                 // Meaning text
                 Text(
-                  entry['gloss'] ?? '',
+                  entry.gloss ?? '',
                   style: TextStyle(color: Colors.grey[350]),
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
@@ -266,13 +279,13 @@ class DictionaryScreenState extends State<DictionaryScreen> {
     );
   }
 
-  void _showEntryDetails(BuildContext context, Map<String, dynamic> entry) {
+  void _showEntryDetails(BuildContext context, Entry entry) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => WordDetailsScreen(
           entry: entry,
-          languageTag: entry['lang']?.toString() ?? _selectedLanguageTag,
+          languageTag: entry.lang.isNotEmpty ? entry.lang : _selectedLanguageTag,
         ),
       ),
     );

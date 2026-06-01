@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:kian/features/dictionary/domain/example_model.dart';
+import 'package:kian/features/dictionary/domain/sense_model.dart';
 
 class LearnSessionModel extends ChangeNotifier {
   List<Map<String, dynamic>> cards = [];
@@ -18,8 +20,8 @@ class LearnSessionModel extends ChangeNotifier {
     'good': 'unknown'
   };
 
-  List<Map<String, dynamic>> meanings = [];
-  List<Map<String, dynamic>> examples = [];
+  List<Sense> meanings = [];
+  List<Example> examples = [];
 
   void reset() {
     cards = [];
@@ -80,12 +82,12 @@ class LearnSessionModel extends ChangeNotifier {
     }
   }
 
-  void setMeanings(List<Map<String, dynamic>> newMeanings) {
+  void setMeanings(List<Sense> newMeanings) {
     meanings = newMeanings;
     notifyListeners();
   }
 
-  void setExamples(List<Map<String, dynamic>> newExamples) {
+  void setExamples(List<Example> newExamples) {
     examples = newExamples;
     notifyListeners();
   }

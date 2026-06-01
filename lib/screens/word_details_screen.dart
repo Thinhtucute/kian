@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:kian/features/fsrs/domain/fsrs_helper.dart';
 import 'package:kian/features/dictionary/data/repositories/dictionary_repository.dart';
+import 'package:kian/features/dictionary/domain/entry_model.dart';
+import 'package:kian/features/dictionary/domain/example_model.dart';
+import 'package:kian/features/dictionary/domain/sense_model.dart';
 import 'package:kian/widgets/card_widget.dart';
 import 'dart:async';
 import 'package:kian/core/logger.dart';
 
 class WordDetailsScreen extends StatefulWidget {
-  final Map<String, dynamic> entry;
+  final Entry entry;
   final String languageTag;
 
   const WordDetailsScreen({
@@ -21,8 +24,14 @@ class WordDetailsScreen extends StatefulWidget {
 
 class _WordDetailsScreenState extends State<WordDetailsScreen> {
   bool _isLoading = true;
-  List<Map<String, dynamic>> _meanings = [];
-  List<Map<String, dynamic>> _examples = [];
+  List<Sense> _meanings = [];
+  List<Example> _examples = [];
+
+  List<Map<String, dynamic>> _meaningsAsMaps() =>
+      _meanings.map((meaning) => meaning.toMap()).toList();
+
+  List<Map<String, dynamic>> _examplesAsMaps() =>
+      _examples.map((example) => example.toMap()).toList();
 
   @override
   void initState() {
@@ -34,15 +43,13 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final entryId = widget.entry['entry_id'] as int;
-      final results = await Future.wait([
-        _getMeanings(entryId),
-        _getExampleSentences(entryId),
-      ]);
+      final entryId = widget.entry.entryId;
+      final meanings = await _getMeanings(entryId);
+      final examples = await _getExampleSentences(entryId);
 
       setState(() {
-        _meanings = results[0];
-        _examples = results[1];
+        _meanings = meanings;
+        _examples = examples;
         _isLoading = false;
       });
     } catch (e) {
@@ -51,27 +58,27 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _getMeanings(int entryId) async {
-    return DictionaryRepository.getMeanings(
+  Future<List<Sense>> _getMeanings(int entryId) async {
+    return DictionaryRepository.getMeaningsModels(
       entryId,
-      languageTag: (widget.entry['lang']?.toString().isNotEmpty ?? false)
-          ? widget.entry['lang'].toString()
+      languageTag: widget.entry.lang.isNotEmpty
+          ? widget.entry.lang
           : widget.languageTag,
     );
   }
 
-  Future<List<Map<String, dynamic>>> _getExampleSentences(int entryId) async {
-    return DictionaryRepository.getExamples(
+  Future<List<Example>> _getExampleSentences(int entryId) async {
+    return DictionaryRepository.getExamplesModels(
       entryId,
-      languageTag: (widget.entry['lang']?.toString().isNotEmpty ?? false)
-          ? widget.entry['lang'].toString()
+      languageTag: widget.entry.lang.isNotEmpty
+          ? widget.entry.lang
           : widget.languageTag,
     );
   }
 
   Future<void> _addToFlashcards() async {
     try {
-      final entryId = widget.entry['entry_id'] as int;
+      final entryId = widget.entry.entryId;
       final added = await FSRSHelper.addToFSRS(entryId);
 
       if (!mounted) return;
@@ -102,7 +109,9 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
       backgroundColor: const Color.fromARGB(255, 16, 20, 63),
       appBar: AppBar(
         title: Text(
-          widget.entry['headword'] ?? widget.entry['reading'],
+          widget.entry.displayHeadword.isNotEmpty
+              ? widget.entry.displayHeadword
+              : widget.entry.displayReading,
           style: TextStyle(color: Colors.white),
         ),
         backgroundColor: const Color.fromARGB(255, 9, 12, 43),
@@ -122,7 +131,7 @@ class _WordDetailsScreenState extends State<WordDetailsScreen> {
               meanings: _meanings,
               examples: _examples,
               showAnswer: true,
-              languageTag: widget.entry['lang']?.toString() ?? widget.languageTag,
+              languageTag: widget.entry.lang.isNotEmpty ? widget.entry.lang : widget.languageTag,
             ),
     );
   }

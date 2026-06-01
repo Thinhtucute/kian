@@ -15,11 +15,11 @@ class LearnSessionService {
 
     final entryId = session.cards[session.currentCardIndex]['entry_id'] as int;
 
-    final meanings = await DictionaryRepository.getMeanings(
+    final meanings = await DictionaryRepository.getMeaningsModels(
       entryId,
       languageTag: languageTag,
     );
-    final examples = await DictionaryRepository.getExamples(
+    final examples = await DictionaryRepository.getExamplesModels(
       entryId,
       languageTag: languageTag,
     );

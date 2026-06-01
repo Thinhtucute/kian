@@ -122,9 +122,7 @@ class FSRSRepository {
         );
         if (entry != null) {
           Map<String, dynamic> enrichedCard = {...card};
-          enrichedCard['headword'] = entry['headword'];
-          enrichedCard['reading'] = entry['reading'];
-          enrichedCard['gloss'] = entry['gloss'];
+          enrichedCard.addAll(entry.toMap());
           enrichedCards.add(enrichedCard);
         }
       } catch (e) {

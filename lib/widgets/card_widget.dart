@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:kian/features/dictionary/domain/entry_model.dart';
+import 'package:kian/features/dictionary/domain/example_model.dart';
+import 'package:kian/features/dictionary/domain/sense_model.dart';
 import 'reading_text.dart';
 
 class ReviewCardWidget extends StatelessWidget {
-  final Map<String, dynamic> card;
-  final List<Map<String, dynamic>> meanings;
-  final List<Map<String, dynamic>> examples;
+  final Entry card;
+  final List<Sense> meanings;
+  final List<Example> examples;
   final bool showAnswer;
   final VoidCallback? onShowAnswer;
   final String languageTag;
@@ -21,19 +24,9 @@ class ReviewCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasKanji = card['headword'] != null;
-    final usesReadingAbove = hasKanji &&
-      (languageTag == 'jp' ||
-        languageTag.startsWith('cn'));
-
-    final String displayReading;
-    if (languageTag == 'jp') {
-      displayReading = (card['reading'] ?? '').toString();
-    } else if (languageTag.startsWith('cn')) {
-      displayReading = (card['reading'] ?? '').toString();
-    } else {
-      displayReading = (card['reading'] ?? '').toString();
-    }
+    final headwordText = card.displayHeadword;
+    final usesReadingAbove = card.showReadingAbove;
+    final displayReading = card.displayReading;
 
     return Padding(
       padding: EdgeInsets.all(16),
@@ -54,7 +47,7 @@ class ReviewCardWidget extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    if (!usesReadingAbove && displayReading.isNotEmpty)
+                    if (showAnswer && !usesReadingAbove && displayReading.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 6.0),
                         child: Text(
@@ -68,7 +61,7 @@ class ReviewCardWidget extends StatelessWidget {
                     Center(
                         child: usesReadingAbove
                           ? FuriganaText(
-                              kanji: card['headword'],
+                              kanji: headwordText,
                               reading: showAnswer ? displayReading : '',
                               languageTag: languageTag,
                               kanjiStyle: TextStyle(
@@ -83,7 +76,7 @@ class ReviewCardWidget extends StatelessWidget {
                               ),
                             )
                           : SelectableText(
-                              card['headword'] ?? card['reading'] ?? '',
+                              headwordText.isNotEmpty ? headwordText : displayReading,
                               style: TextStyle(
                                 fontSize: 48,
                                 color: Colors.white,
@@ -138,13 +131,13 @@ class ReviewCardWidget extends StatelessWidget {
   }
 
   Widget _buildMeaningsAndExamples() {
-    Map<int, Map<String, dynamic>> examplesBySense = {};
+    final Map<int, Example> examplesBySense = {};
 
     for (var example in examples) {
-      String japaneseText = example['japanese_text'] ?? '';
-      String englishText = example['english_translation'] ?? '';
-      if (japaneseText.isEmpty || englishText.isEmpty) continue;
-      int senseId = example['sense_id'];
+      if (example.japaneseText.isEmpty || example.englishTranslation.isEmpty) {
+        continue;
+      }
+      final senseId = example.senseId;
       if (!examplesBySense.containsKey(senseId)) {
         examplesBySense[senseId] = example;
       }
@@ -153,9 +146,9 @@ class ReviewCardWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: meanings.asMap().entries.map((entry) {
-        int index = entry.key;
-        Map<String, dynamic> meaning = entry.value;
-        int senseId = meaning['id'];
+        final index = entry.key;
+        final meaning = entry.value;
+        final senseId = meaning.id;
 
         return Card(
           color: const Color.fromARGB(255, 2, 75, 127),
@@ -188,18 +181,12 @@ class ReviewCardWidget extends StatelessWidget {
                       ),
                     ),
                     SizedBox(width: 12),
-                    if (meaning['part_of_speech'] != null &&
-                        meaning['part_of_speech'].toString().isNotEmpty)
+                    if (meaning.partOfSpeech.isNotEmpty)
                       Expanded(
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 2),
                           child: Text(
-                            (meaning['part_of_speech'] as String)
-                                .replaceAll(',', ', ')
-                                .split(',')
-                                .map((pos) => pos.trim())
-                                .toSet()
-                                .join(', '),
+                            meaning.partOfSpeech.join(', '),
                             style: TextStyle(
                               color: Colors.amber,
                               fontSize: 16,
@@ -214,14 +201,7 @@ class ReviewCardWidget extends StatelessWidget {
                 ),
                 SizedBox(height: 12),
                 SelectableText(
-                  meaning['definitions'] != null
-                      ? (meaning['definitions'] as String)
-                          .replaceAll(',', '; ')
-                          .split(';')
-                          .map((d) => d.trim())
-                          .toSet()
-                          .join('; ')
-                      : '',
+                  meaning.definitions.join('; '),
                   style: TextStyle(
                     fontSize: 20,
                     color: Colors.white,
@@ -245,7 +225,7 @@ class ReviewCardWidget extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         SelectableText(
-                          examplesBySense[senseId]!['japanese_text'] ?? '',
+                          examplesBySense[senseId]!.japaneseText,
                           style: TextStyle(
                             fontSize: 20,
                             color: Colors.white,
@@ -255,8 +235,7 @@ class ReviewCardWidget extends StatelessWidget {
                         ),
                         SizedBox(height: 8),
                         SelectableText(
-                          examplesBySense[senseId]!['english_translation'] ??
-                              '',
+                          examplesBySense[senseId]!.englishTranslation,
                           style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey[400],

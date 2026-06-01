@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
+import 'package:kian/features/dictionary/domain/entry_model.dart';
 import 'package:kian/widgets/card_widget.dart';
 import 'package:kian/widgets/session_stats.dart';
 import 'package:kian/services/cloud/auth_service.dart';
 import 'package:kian/features/fsrs/application/export_service.dart';
 import 'package:kian/features/fsrs/application/learn_session.dart';
+import 'package:kian/features/dictionary/domain/example_model.dart';
+import 'package:kian/features/dictionary/domain/sense_model.dart';
 import 'package:provider/provider.dart';
 import 'package:kian/models/session_model.dart';
 import 'package:kian/models/sync_model.dart';
@@ -283,6 +286,7 @@ class LearnScreenState extends State<LearnScreen> {
 
   Widget _buildReviewArea(LearnSessionModel session) {
     final currentCard = session.cards[session.currentCardIndex];
+    final currentEntry = Entry.fromMap(currentCard);
 
     return KeyboardListener(
       focusNode: _focusNode,
@@ -332,12 +336,12 @@ class LearnScreenState extends State<LearnScreen> {
           // Review card
           Expanded(
             child: ReviewCardWidget(
-              card: currentCard,
+              card: currentEntry,
               meanings: session.meanings,
               examples: session.examples,
               showAnswer: session.showingAnswer,
               onShowAnswer: () => LearnSessionService.showAnswer(session),
-              languageTag: currentCard['lang']?.toString() ?? '',
+              languageTag: currentEntry.lang,
             ),
           ),
 

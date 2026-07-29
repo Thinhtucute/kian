@@ -136,7 +136,7 @@ class DictionaryRepository {
     if (_isCjkQuery(query) && query.length > 1) {
       return '"$query"';
     }
-    return '${query}*';
+    return '$query*';
   }
 
   static Future<List<Map<String, Object?>>> _searchHeadwordFts({
@@ -258,7 +258,7 @@ class DictionaryRepository {
       WHERE $scriptClause AND h.text LIKE ? AND e.lang = ?
       ORDER BY e.id ASC
       LIMIT ?
-    ''', [_definitionLanguageTag, '${query}%', languageTag, limit]);
+    ''', [_definitionLanguageTag, '$query%', languageTag, limit]);
 
     return results;
   }
@@ -565,7 +565,7 @@ class DictionaryRepository {
         WHERE df.text MATCH ? AND e.lang = ?
         ORDER BY e.id ASC
         LIMIT ?
-      ''', [_definitionLanguageTag, '${query}*', resolvedLanguageTag, limit]);
+      ''', [_definitionLanguageTag, '$query*', resolvedLanguageTag, limit]);
 
       return EntryPresentationMapper.buildEntryListFromSource(
         results,

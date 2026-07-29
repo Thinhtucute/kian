@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:kian/features/dictionary/data/local/dictionary_database.dart';
+import 'package:kian/features/dictionary/data/local/download_progress.dart';
 import 'package:kian/features/dictionary/data/repositories/dictionary_repository.dart';
 import 'package:kian/features/dictionary/domain/example_model.dart';
 import 'package:kian/features/dictionary/domain/headword_model.dart';
@@ -11,7 +12,12 @@ class DictionaryHelper {
     factory DictionaryHelper() => _instance;
     DictionaryHelper._internal();
 
-    static Future<void> initialize() => DictionaryDatabase.initialize();
+    static Future<void> initialize({
+        DictionaryDownloadProgress? onProgress,
+    }) => DictionaryDatabase.initialize(onProgress: onProgress);
+
+    static Future<String> getDatabasePath() =>
+            DictionaryDatabase.getDatabasePath();
     static Future<Database> getDatabase() => DictionaryDatabase.getDatabase();
 
     static Future<Entry?> getEntryById(

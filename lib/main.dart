@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'screens/learn_screen.dart';
 import 'screens/dictionary_screen.dart';
 import 'screens/login_screen.dart';
 import 'models/session_model.dart';
 import 'models/sync_model.dart';
 import 'services/cloud/auth_service.dart';
-import 'app/app_init.dart';
+import 'screens/bootstrap_screen.dart';
 import 'widgets/sync_banner.dart';
+import 'core/db_factory.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();                
-  await initialize();  
-  runApp(
-    MyApp(),
-  );
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  DatabaseFactories.initialize();
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -24,12 +24,14 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       theme: ThemeData.dark(),
-      home: AuthWrapper(),
+      home: const BootstrapScreen(
+        child: AuthWrapper(),
+      ),
     );
   }
 }
 
-// Wrapper to handle authentication state
+// Wrapper to handle auth state
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
@@ -38,7 +40,6 @@ class AuthWrapper extends StatelessWidget {
     return StreamBuilder(
       stream: AuthService.authStateChanges,
       builder: (context, snapshot) {
-        // Show loading while checking auth state
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(
@@ -47,12 +48,9 @@ class AuthWrapper extends StatelessWidget {
           );
         }
 
-        // If user is logged in, show main screen
         if (snapshot.hasData && AuthService.isLoggedIn) {
           return const MainScreen();
         }
-
-        // Otherwise show login screen
         return const LoginScreen();
       },
     );

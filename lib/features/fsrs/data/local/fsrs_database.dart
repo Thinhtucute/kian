@@ -21,6 +21,20 @@ class FSRSDatabase {
     return _database!;
   }
 
+  static Future<void> deleteDatabase() async {
+    final database = _database;
+    final documentsDirectory = await getApplicationDocumentsDirectory();
+    final dbPath = join(documentsDirectory.path, _dbName);
+
+    try {
+      await database?.close();
+      await databaseFactory.deleteDatabase(dbPath);
+    } finally {
+      _database = null;
+      _initialized = false;
+    }
+  }
+
   static Future<Database> _initDatabase() async {
     Directory documentsDirectory = await getApplicationDocumentsDirectory();
     String dbPath = join(documentsDirectory.path, _dbName);

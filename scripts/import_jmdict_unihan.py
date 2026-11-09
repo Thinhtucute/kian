@@ -1,53 +1,48 @@
 #!/usr/bin/env python3
-"""Bootstrap a generalized dictionary SQLite DB from JMdict XML + Unihan ZIP.
+"""Bootstrap a generalized dictionary SQLite DB from JMdict XML + Unihan ZIP
+(+ optional enriched CC-CEDICT TSV).
 
 Usage:
   python scripts/import_jmdict_unihan.py \
         --jmdict JMdict_e.xml \
         --unihan Unihan.zip \
-        --out dictionary_general.db
+        --cedict plecodict_patched_enriched.tsv \
+        --out dictionary_general.db \
+        --overwrite
 
 If you place the input files next to this script, you can omit the path values
 and use the defaults.
+
+Notes on the schema:
+  * cjk_char.id is the Unicode code point itself (id = ord(ch)), so callers can
+    query cjk_char_property / headword_char by code point without joining cjk_char.
+  * Only the Unihan keys in APP_KEYS are imported by default (--unihan-keys app).
+  * headword_fts is an external-content table over all headwords by default.
+    Pass --slim-fts to index only pinyin/latin rows (CJK/kana search should then
+    go through GLOB / headword_char instead of FTS).
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import hashlib
 import re
 import sqlite3
 import sys
 import xml.etree.ElementTree as ET
 import zipfile
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Iterable, Optional, Sequence, Tuple
 
 
-ORTHOGRAPHY_VALUES = {
-    "ateji",
-    "ik",
-    "io",
-    "ok",
-    "rk",
-    "sik",
-    "gikun",
-    "jukujikun",
-    "okuriari",
-    "rare",
-    "search-only",
-    "irregular-kana",
-    "irregular-kanji",
-    "old-kana",
-    "rare-kanji",
-    "kana-only",
+# Unihan keys the app actually uses (character detail screen).
+APP_KEYS = {
+    "kTotalStrokes", "kRSUnicode", "kDefinition", "kMandarin", "kCantonese",
+    "kHanyuPinyin", "kJapaneseOn", "kJapaneseKun", "kKorean", "kHangul",
+    "kVietnamese", "kGradeLevel", "kJoyoKanji", "kJinmeiyoKanji",
+    "kUnihanCore2020", "kSimplifiedVariant", "kTraditionalVariant",
+    "kSemanticVariant", "kCangjie", "kFourCornerCode",
 }
-
-
-def now_iso_utc() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
 def normalize_script(text: str) -> str:
@@ -91,7 +86,7 @@ def pick_slug(kanji_forms: Sequence[str], reading_forms: Sequence[str]) -> Optio
     return None
 
 
-def create_schema(conn: sqlite3.Connection) -> None:
+def create_schema(conn: sqlite3.Connection, slim_fts: bool = False) -> None:
     conn.executescript(
         """
         PRAGMA foreign_keys = ON;
@@ -159,26 +154,13 @@ def create_schema(conn: sqlite3.Connection) -> None:
             FOREIGN KEY (sense_id) REFERENCES sense(id) ON DELETE CASCADE
         );
 
+        -- id is the Unicode code point itself (id = ord(character)).
         CREATE TABLE IF NOT EXISTS cjk_char (
             id INTEGER PRIMARY KEY,
             character TEXT NOT NULL UNIQUE,
             codepoint TEXT NOT NULL UNIQUE
         );
 
-        CREATE TABLE IF NOT EXISTS characters (
-            code_point INTEGER PRIMARY KEY,
-            char TEXT GENERATED ALWAYS AS (char(code_point)) STORED
-        );
-
-        CREATE TABLE IF NOT EXISTS unihan_properties (
-            code_point INTEGER NOT NULL,
-            property TEXT NOT NULL,
-            value TEXT NOT NULL,
-            PRIMARY KEY (code_point, property, value),
-            FOREIGN KEY (code_point) REFERENCES characters(code_point) ON DELETE CASCADE
-        );
-
-        -- Use an explicit surrogate primary key so FTS can reference it directly.
         CREATE TABLE IF NOT EXISTS cjk_char_property (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             char_id INTEGER NOT NULL,
@@ -197,74 +179,41 @@ def create_schema(conn: sqlite3.Connection) -> None:
             FOREIGN KEY (char_id) REFERENCES cjk_char(id) ON DELETE CASCADE
         );
 
-        CREATE TABLE IF NOT EXISTS jmdict_entry_meta (
-            entry_id INTEGER PRIMARY KEY,
-            ent_seq INTEGER NOT NULL UNIQUE,
-            FOREIGN KEY (entry_id) REFERENCES entry(id) ON DELETE CASCADE
-        );
-
-        CREATE TABLE IF NOT EXISTS cedict_entry_meta (
-            entry_id INTEGER PRIMARY KEY,
-            source_row INTEGER NOT NULL UNIQUE,
-            FOREIGN KEY (entry_id) REFERENCES entry(id) ON DELETE CASCADE
-        );
-
-        CREATE TABLE IF NOT EXISTS import_meta (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source TEXT NOT NULL,
-            filename TEXT,
-            version TEXT,
-            entry_count INTEGER,
-            imported_at TEXT
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_entry_source_source_id ON entry(source, source_id);
+        -- Note: UNIQUE constraints already give automatic indexes on
+        -- entry(source, source_id), cjk_char(character), cjk_char(codepoint)
+        -- and cjk_char_property(char_id, key, value), so no manual copies here.
         CREATE INDEX IF NOT EXISTS idx_headword_entry_id ON headword(entry_id);
         CREATE INDEX IF NOT EXISTS idx_headword_text ON headword(text);
-        CREATE INDEX IF NOT EXISTS idx_headword_script ON headword(script);
+        CREATE INDEX IF NOT EXISTS idx_headword_tag_headword_id ON headword_tag(headword_id);
         CREATE INDEX IF NOT EXISTS idx_sense_entry_id ON sense(entry_id);
         CREATE INDEX IF NOT EXISTS idx_definition_sense_id ON definition(sense_id);
         CREATE INDEX IF NOT EXISTS idx_sense_tag_sense_id ON sense_tag(sense_id);
         CREATE INDEX IF NOT EXISTS idx_example_sense_id ON example(sense_id);
         CREATE INDEX IF NOT EXISTS idx_headword_char_headword_id ON headword_char(headword_id);
         CREATE INDEX IF NOT EXISTS idx_headword_char_char_id ON headword_char(char_id);
-
-        -- Indexes to speed up character lookups by literal or codepoint
-        CREATE INDEX IF NOT EXISTS idx_cjk_char_codepoint ON cjk_char(codepoint);
-        CREATE INDEX IF NOT EXISTS idx_cjk_char_character ON cjk_char(character);
-        CREATE INDEX IF NOT EXISTS idx_cjk_char_property_char_id ON cjk_char_property(char_id);
-        CREATE INDEX IF NOT EXISTS idx_cjk_char_property_key ON cjk_char_property(key);
         CREATE INDEX IF NOT EXISTS idx_cjk_char_property_key_value ON cjk_char_property(key, value);
-
-        CREATE INDEX IF NOT EXISTS idx_unihan_properties_code_point ON unihan_properties(code_point);
-        CREATE INDEX IF NOT EXISTS idx_unihan_properties_property ON unihan_properties(property);
-        CREATE INDEX IF NOT EXISTS idx_unihan_properties_property_value ON unihan_properties(property, value);
-
-        CREATE VIRTUAL TABLE IF NOT EXISTS headword_fts USING fts5(
-            text,
-            content='headword',
-            content_rowid='id'
-        );
 
         CREATE VIRTUAL TABLE IF NOT EXISTS definition_fts USING fts5(
             text,
             content='definition',
             content_rowid='id'
         );
-
-        CREATE VIRTUAL TABLE IF NOT EXISTS example_fts USING fts5(
-            text,
-            content='example',
-            content_rowid='id'
-        );
-
-        CREATE VIRTUAL TABLE IF NOT EXISTS cjk_char_property_fts USING fts5(
-            value,
-            content='cjk_char_property',
-            content_rowid='id'
-        );
         """
     )
+
+    if slim_fts:
+        # Standalone FTS over pinyin/latin rows only; rowid = headword.id
+        conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS headword_fts USING fts5(text)")
+    else:
+        conn.execute(
+            """
+            CREATE VIRTUAL TABLE IF NOT EXISTS headword_fts USING fts5(
+                text,
+                content='headword',
+                content_rowid='id'
+            )
+            """
+        )
 
 
 def normalize_ke_re_inf(code: str) -> str:
@@ -272,12 +221,9 @@ def normalize_ke_re_inf(code: str) -> str:
 
     code_map = {
         "ik": "irregular-kanji",
-        "iK": "irregular-kanji",
         "io": "irregular-kana",
         "ok": "old-kana",
-        "oK": "old-kana",
         "rk": "rare-kanji",
-        "sK": "search-only",
         "sk": "search-only",
         "gikun": "gikun",
         "jukujikun": "jukujikun",
@@ -298,7 +244,8 @@ def clean_text(value) -> str:
         value = str(value)
     if not value:
         return ""
-    cleaned = value.replace("", "").strip()
+    # strip zero-width space / BOM, then collapse whitespace
+    cleaned = value.replace("\u200b", "").replace("\ufeff", "").strip()
     cleaned = re.sub(r"\s+", " ", cleaned)
     return cleaned
 
@@ -388,11 +335,6 @@ def import_jmdict(conn: sqlite3.Connection, jmdict_xml: Path, batch_size: int = 
             ("jmdict", ent_seq, "jp", slug),
         )
         entry_id = int(cur.lastrowid)
-
-        conn.execute(
-            "INSERT INTO jmdict_entry_meta (entry_id, ent_seq) VALUES (?, ?)",
-            (entry_id, int(ent_seq)),
-        )
 
         primary_assigned = False
 
@@ -587,40 +529,47 @@ def import_jmdict(conn: sqlite3.Connection, jmdict_xml: Path, batch_size: int = 
             print(f"Imported JMdict entries: {count}")
 
     conn.commit()
-    conn.execute(
-        """
-        INSERT INTO import_meta (source, filename, version, entry_count, imported_at)
-        VALUES (?, ?, ?, ?, ?)
-        """,
-        ("jmdict", jmdict_xml.name, None, count, now_iso_utc()),
-    )
-    conn.commit()
-
     return count
 
 
-def populate_headword_char(conn: sqlite3.Connection) -> int:
+def populate_headword_char(conn: sqlite3.Connection, batch_size: int = 50000) -> int:
     rows = conn.execute(
         "SELECT id, text FROM headword WHERE script = 'cjk' ORDER BY id"
     ).fetchall()
 
     links = 0
+    seen_chars: set[int] = set()
+    char_batch: list[Tuple[int, str, str]] = []
+    link_batch: list[Tuple[int, int, int]] = []
+
+    def flush() -> None:
+        if char_batch:
+            conn.executemany(
+                "INSERT OR IGNORE INTO cjk_char (id, character, codepoint) VALUES (?, ?, ?)",
+                char_batch,
+            )
+            char_batch.clear()
+        if link_batch:
+            conn.executemany(
+                "INSERT INTO headword_char (headword_id, char_id, position) VALUES (?, ?, ?)",
+                link_batch,
+            )
+            link_batch.clear()
+
     for hw_id, text in rows:
         if not text:
             continue
         for pos, ch in enumerate(text):
             cp = ord(ch)
-            codepoint = f"U+{cp:04X}"
-            conn.execute(
-                "INSERT OR IGNORE INTO cjk_char (id, character, codepoint) VALUES (?, ?, ?)",
-                (cp, ch, codepoint),
-            )
-            conn.execute(
-                "INSERT INTO headword_char (headword_id, char_id, position) VALUES (?, ?, ?)",
-                (hw_id, cp, pos),
-            )
+            if cp not in seen_chars:
+                seen_chars.add(cp)
+                char_batch.append((cp, ch, f"U+{cp:04X}"))
+            link_batch.append((hw_id, cp, pos))
             links += 1
+        if len(link_batch) >= batch_size:
+            flush()
 
+    flush()
     conn.commit()
     return links
 
@@ -643,13 +592,11 @@ def parse_unihan_line(line: str) -> Optional[Tuple[int, str, str]]:
     return cp, key.strip(), value.strip()
 
 
-def cedict_source_id(traditional: str, simplified: str, pinyin: str, line_no: int) -> str:
-    payload = "|".join([traditional, simplified, pinyin, str(line_no)])
-    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
-
-
 def import_cedict(conn: sqlite3.Connection, cedict_file: Path, batch_size: int = 2000) -> int:
-    """Import the enriched TSV format into the generalized schema."""
+    """Import the enriched TSV format into the generalized schema.
+
+    entry.source_id is the 1-based data row number in the TSV.
+    """
     count = 0
     row_no = 0
 
@@ -683,9 +630,6 @@ def import_cedict(conn: sqlite3.Connection, cedict_file: Path, batch_size: int =
             senses_data = parse_json_array(senses_raw)
             examples_data = parse_json_array(examples_raw)
 
-            # Use the row order (top-to-bottom) in the enriched TSV as the
-            # CC-CEDICT source identifier. This ensures a stable, compact
-            # sequential id when the original text file has no native entry id.
             source_id = str(row_no)
             slug = simplified or traditional or pinyin
 
@@ -698,46 +642,35 @@ def import_cedict(conn: sqlite3.Connection, cedict_file: Path, batch_size: int =
             )
             entry_id = int(cur.lastrowid)
 
-            conn.execute(
-                "INSERT INTO cedict_entry_meta (entry_id, source_row) VALUES (?, ?)",
-                (entry_id, row_no),
-            )
-
             headword_index = 0
             if traditional:
-                cur = conn.execute(
+                conn.execute(
                     """
                     INSERT INTO headword (entry_id, text, script, position, is_primary, romanization_type)
                     VALUES (?, ?, ?, ?, ?, NULL)
                     """,
                     (entry_id, traditional, normalize_script(traditional), headword_index, 1),
                 )
-                trad_hw_id = int(cur.lastrowid)
-                insert_headword_tags(conn, trad_hw_id, [], [], [])
                 headword_index += 1
 
             if simplified and simplified != traditional:
-                cur = conn.execute(
+                conn.execute(
                     """
                     INSERT INTO headword (entry_id, text, script, position, is_primary, romanization_type)
                     VALUES (?, ?, ?, ?, ?, NULL)
                     """,
                     (entry_id, simplified, normalize_script(simplified), headword_index, 0 if traditional else 1),
                 )
-                simp_hw_id = int(cur.lastrowid)
-                insert_headword_tags(conn, simp_hw_id, [], [], [])
                 headword_index += 1
 
             if pinyin:
-                cur = conn.execute(
+                conn.execute(
                     """
                     INSERT INTO headword (entry_id, text, script, position, is_primary, romanization_type)
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     (entry_id, pinyin, "romanization", headword_index, 0, "pinyin-numeric"),
                 )
-                pinyin_hw_id = int(cur.lastrowid)
-                insert_headword_tags(conn, pinyin_hw_id, [], [], [])
 
             sense_ids: list[int] = []
             for sense_pos, sense_data in enumerate(senses_data):
@@ -825,15 +758,6 @@ def import_cedict(conn: sqlite3.Connection, cedict_file: Path, batch_size: int =
                 print(f"Imported enriched TSV entries: {count}")
 
     conn.commit()
-    conn.execute(
-        """
-        INSERT INTO import_meta (source, filename, version, entry_count, imported_at)
-        VALUES (?, ?, ?, ?, ?)
-        """,
-        ("cedict_enriched", cedict_file.name, None, count, now_iso_utc()),
-    )
-    conn.commit()
-
     return count
 
 
@@ -841,8 +765,35 @@ def import_unihan(
     conn: sqlite3.Connection,
     unihan_zip: Path,
     allowed_keys: Optional[set[str]] = None,
+    batch_size: int = 50000,
 ) -> int:
     inserted = 0
+    seen_chars: set[int] = set()
+    char_batch: list[Tuple[int, str, str]] = []
+    prop_batch: list[Tuple[int, str, str]] = []
+
+    def flush() -> int:
+        nonlocal char_batch, prop_batch
+        before = conn.total_changes
+        if char_batch:
+            conn.executemany(
+                "INSERT OR IGNORE INTO cjk_char (id, character, codepoint) VALUES (?, ?, ?)",
+                char_batch,
+            )
+        chars_changed = conn.total_changes - before
+        if prop_batch:
+            conn.executemany(
+                """
+                INSERT INTO cjk_char_property (char_id, key, value)
+                VALUES (?, ?, ?)
+                ON CONFLICT(char_id, key, value) DO NOTHING
+                """,
+                prop_batch,
+            )
+        props_changed = conn.total_changes - before - chars_changed
+        char_batch = []
+        prop_batch = []
+        return props_changed
 
     with zipfile.ZipFile(unihan_zip, "r") as zf:
         names = [n for n in zf.namelist() if n.startswith("Unihan") and n.endswith(".txt")]
@@ -861,55 +812,31 @@ def import_unihan(
                     if allowed_keys is not None and key not in allowed_keys:
                         continue
 
-                    ch = chr(cp)
-                    codepoint = f"U+{cp:04X}"
+                    if cp not in seen_chars:
+                        seen_chars.add(cp)
+                        char_batch.append((cp, chr(cp), f"U+{cp:04X}"))
+                    prop_batch.append((cp, key, value))
 
-                    conn.execute(
-                        "INSERT OR IGNORE INTO cjk_char (id, character, codepoint) VALUES (?, ?, ?)",
-                        (cp, ch, codepoint),
-                    )
-                    conn.execute(
-                        "INSERT OR IGNORE INTO characters (code_point) VALUES (?)",
-                        (cp,),
-                    )
+                    if len(prop_batch) >= batch_size:
+                        inserted += flush()
 
-                    cur = conn.execute(
-                        """
-                        INSERT OR IGNORE INTO unihan_properties (code_point, property, value)
-                        VALUES (?, ?, ?)
-                        """,
-                        (cp, key, value),
-                    )
-                    if cur.rowcount and cur.rowcount > 0:
-                        inserted += 1
-
-                    conn.execute(
-                        """
-                        INSERT INTO cjk_char_property (char_id, key, value)
-                        VALUES (?, ?, ?)
-                        ON CONFLICT(char_id, key, value) DO NOTHING
-                        """,
-                        (cp, key, value),
-                    )
-
+    inserted += flush()
     conn.commit()
-    conn.execute(
-        """
-        INSERT INTO import_meta (source, filename, version, entry_count, imported_at)
-        VALUES (?, ?, ?, ?, ?)
-        """,
-        ("unihan", unihan_zip.name, None, inserted, now_iso_utc()),
-    )
-    conn.commit()
-
     return inserted
 
 
-def rebuild_fts(conn: sqlite3.Connection) -> None:
-    conn.execute("INSERT INTO headword_fts(headword_fts) VALUES ('rebuild')")
+def rebuild_fts(conn: sqlite3.Connection, slim_fts: bool = False) -> None:
+    if slim_fts:
+        conn.execute("DELETE FROM headword_fts")
+        conn.execute(
+            """
+            INSERT INTO headword_fts(rowid, text)
+            SELECT id, text FROM headword WHERE script IN ('romanization', 'latin')
+            """
+        )
+    else:
+        conn.execute("INSERT INTO headword_fts(headword_fts) VALUES ('rebuild')")
     conn.execute("INSERT INTO definition_fts(definition_fts) VALUES ('rebuild')")
-    conn.execute("INSERT INTO example_fts(example_fts) VALUES ('rebuild')")
-    conn.execute("INSERT INTO cjk_char_property_fts(cjk_char_property_fts) VALUES ('rebuild')")
     conn.commit()
 
 
@@ -917,21 +844,8 @@ def parse_keys_arg(value: str) -> Optional[set[str]]:
     v = value.strip().lower()
     if v in {"", "all"}:
         return None
-
-    if v == "core":
-        return {
-            "kDefinition",
-            "kMandarin",
-            "kJapaneseOn",
-            "kJapaneseKun",
-            "kCantonese",
-            "kTotalStrokes",
-            "kFrequency",
-            "kSimplifiedVariant",
-            "kTraditionalVariant",
-            "kGradeLevel",
-        }
-
+    if v in {"app", "core"}:
+        return set(APP_KEYS)
     return {x.strip() for x in value.split(",") if x.strip()}
 
 
@@ -942,11 +856,11 @@ def validate_args(args: argparse.Namespace) -> None:
         raise FileNotFoundError(f"Unihan ZIP not found: {args.unihan}")
 
     if args.cedict and not args.cedict.exists():
-        raise FileNotFoundError(f"CC-CEDICT file not found: {args.cedict}")
+        raise FileNotFoundError(f"Enriched CC-CEDICT TSV not found: {args.cedict}")
 
     if args.out.exists() and not args.overwrite:
         raise FileExistsError(
-            f"Output DB already exists: {args.out}\\n"
+            f"Output DB already exists: {args.out}\n"
             "Pass --overwrite to recreate it."
         )
 
@@ -989,7 +903,7 @@ def main() -> int:
         "--cedict",
         type=Path,
         default=None,
-        help="Optional path to CC-CEDICT plain text file",
+        help="Optional path to the enriched CC-CEDICT TSV file",
     )
     parser.add_argument(
         "--out",
@@ -999,14 +913,19 @@ def main() -> int:
     )
     parser.add_argument(
         "--unihan-keys",
-        default="all",
-        help="Unihan key filter: all | core | comma-separated key list (default: all)",
+        default="app",
+        help="Unihan key filter: app | all | comma-separated key list (default: app)",
+    )
+    parser.add_argument(
+        "--slim-fts",
+        action="store_true",
+        help="Index only pinyin/latin headwords in headword_fts (route CJK/kana to GLOB)",
     )
     parser.add_argument(
         "--batch-size",
         type=int,
         default=1000,
-        help="Commit interval while importing JMdict",
+        help="Commit interval while importing JMdict/CEDICT",
     )
     parser.add_argument(
         "--overwrite",
@@ -1036,7 +955,7 @@ def main() -> int:
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA synchronous = NORMAL")
 
-        create_schema(conn)
+        create_schema(conn, slim_fts=args.slim_fts)
 
         print("Importing JMdict...")
         jmdict_count = import_jmdict(conn, args.jmdict, batch_size=args.batch_size)
@@ -1056,10 +975,14 @@ def main() -> int:
         print(f"Unihan properties imported: {unihan_count}")
 
         print("Rebuilding FTS...")
-        rebuild_fts(conn)
+        rebuild_fts(conn, slim_fts=args.slim_fts)
 
         conn.execute("ANALYZE")
         conn.commit()
+
+        # Fold the WAL back into the main file so the shipped DB is one file.
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        conn.execute("PRAGMA journal_mode = DELETE")
         conn.close()
 
         print(f"Done. Output DB: {args.out}")

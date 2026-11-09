@@ -2,7 +2,73 @@ import 'package:flutter/material.dart';
 import 'package:kian/features/dictionary/domain/entry_model.dart';
 import 'package:kian/features/dictionary/domain/example_model.dart';
 import 'package:kian/features/dictionary/domain/sense_model.dart';
+import 'package:kian/screens/kanji_detail_screen.dart';
 import 'reading_text.dart';
+
+bool _isJapaneseCard(String languageTag) => languageTag.toLowerCase().startsWith('jp');
+
+bool _isKanji(String char) {
+  if (char.isEmpty) return false;
+
+  final rune = char.runes.first;
+  return rune >= 0x4E00 && rune <= 0x9FFF;
+}
+
+Widget _buildJapaneseHeadword(BuildContext context, String text) {
+  final chars = text.runes.map((r) => String.fromCharCode(r)).toList();
+
+  return Wrap(
+    alignment: WrapAlignment.center,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: [
+      for (final char in chars)
+        _isKanji(char)
+            ? InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => KanjiDetailScreen(character: char),
+                    ),
+                  );
+                },
+                child: Text(
+                  char,
+                  style: TextStyle(
+                    fontSize: 48,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              )
+            : Text(
+                char,
+                style: TextStyle(
+                  fontSize: 48,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+    ],
+  );
+}
+
+Widget _buildHeadwordWidget(BuildContext context, String headwordText, String displayReading, String languageTag) {
+  final baseText = (headwordText.isNotEmpty ? headwordText : displayReading).trim();
+
+  if (_isJapaneseCard(languageTag) && baseText.isNotEmpty) {
+    return _buildJapaneseHeadword(context, baseText);
+  }
+
+  return SelectableText(
+    baseText.isNotEmpty ? baseText : displayReading,
+    style: TextStyle(
+      fontSize: 48,
+      color: Colors.white,
+      fontWeight: FontWeight.bold,
+    ),
+  );
+}
 
 class ReviewCardWidget extends StatelessWidget {
   final Entry card;
@@ -59,30 +125,23 @@ class ReviewCardWidget extends StatelessWidget {
                         ),
                       ),
                     Center(
-                        child: usesReadingAbove
-                          ? FuriganaText(
-                              kanji: headwordText,
-                              reading: showAnswer ? displayReading : '',
-                              languageTag: languageTag,
-                              kanjiStyle: TextStyle(
-                                fontSize: 48,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              readingStyle: TextStyle(
-                                fontSize: 20,
-                                color: Colors.lightBlueAccent,
-                                letterSpacing: 1.0,
-                              ),
+                      child: usesReadingAbove
+                          ? Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                FuriganaText(
+                                  reading: showAnswer ? displayReading : '',
+                                  languageTag: languageTag,
+                                  readingStyle: TextStyle(
+                                    fontSize: 20,
+                                    color: Colors.lightBlueAccent,
+                                    letterSpacing: 1.0,
+                                  ),
+                                ),
+                                _buildHeadwordWidget(context, headwordText, displayReading, languageTag),
+                              ],
                             )
-                          : SelectableText(
-                              headwordText.isNotEmpty ? headwordText : displayReading,
-                              style: TextStyle(
-                                fontSize: 48,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                          : _buildHeadwordWidget(context, headwordText, displayReading, languageTag),
                     ),
                   ],
                 ),

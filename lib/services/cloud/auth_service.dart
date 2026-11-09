@@ -1,3 +1,4 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 
@@ -63,5 +64,13 @@ class AuthService {
   // Refresh session
   static Future<AuthResponse> refreshSession() async {
     return await _client.auth.refreshSession();
+  }
+
+  // Check whether the device currently has a network connection.
+  static Future<bool> hasNetworkConnection() async {
+    final connectivityResults = await Connectivity().checkConnectivity();
+    return connectivityResults.any(
+      (result) => result != ConnectivityResult.none,
+    );
   }
 }

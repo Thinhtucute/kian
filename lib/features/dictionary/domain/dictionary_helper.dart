@@ -5,6 +5,7 @@ import 'package:kian/features/dictionary/data/repositories/dictionary_repository
 import 'package:kian/features/dictionary/domain/example_model.dart';
 import 'package:kian/features/dictionary/domain/headword_model.dart';
 import 'package:kian/features/dictionary/domain/entry_model.dart';
+import 'package:kian/features/dictionary/domain/kanji_detail_model.dart';
 import 'package:kian/features/dictionary/domain/sense_model.dart';
 
 class DictionaryHelper {
@@ -32,6 +33,9 @@ class DictionaryHelper {
     static Future<List<Headword>> getHeadwordsByEntryId(
         int entryId,
     ) => DictionaryRepository.getHeadwordsModels(entryId);
+
+    static Future<KanjiDetail?> getKanjiDetail(String character) =>
+            DictionaryRepository.getKanjiDetailModel(character);
 
     static Future<List<Sense>> getMeaningsByEntryId(
         int entryId, {

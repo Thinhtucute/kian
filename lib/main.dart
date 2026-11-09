@@ -48,7 +48,9 @@ class AuthWrapper extends StatelessWidget {
           );
         }
 
-        if (snapshot.hasData && AuthService.isLoggedIn) {
+        // Use the restored local session immediately. The auth stream can
+        // remain waiting or emit no event when the app starts offline.
+        if (AuthService.isLoggedIn) {
           return const MainScreen();
         }
         return const LoginScreen();

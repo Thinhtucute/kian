@@ -5,26 +5,21 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="846981cb-c6df-4785-b94a-92a6fe555ccd" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/lib/features/dictionary/data/local/debugger.dart" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/features/dictionary/data/local/download_progress.dart" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/features/dictionary/data/local/downloader.dart" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/features/dictionary/data/local/extractor.dart" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/features/dictionary/data/local/installer.dart" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/features/dictionary/data/local/validator.dart" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/features/dictionary/dictionary.zip" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/lib.zip" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/screens/bootstrap_screen.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.flutter-plugins-dependencies" beforeDir="false" afterPath="$PROJECT_DIR$/.flutter-plugins-dependencies" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/android/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/android/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/android/.gradle/file-system.probe" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/android/local.properties" beforeDir="false" afterPath="$PROJECT_DIR$/android/local.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/app/app_init.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/app/app_init.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/features/dictionary/data/local/dictionary_database.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/features/dictionary/data/local/dictionary_database.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/dictionary.db" beforeDir="false" afterPath="$PROJECT_DIR$/assets/dictionary.db" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/features/dictionary/data/local/debugger.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/features/dictionary/data/local/debugger.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/features/dictionary/data/local/installer.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/features/dictionary/data/local/installer.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/features/dictionary/data/repositories/dictionary_repository.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/features/dictionary/data/repositories/dictionary_repository.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/features/dictionary/domain/dictionary_helper.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/features/dictionary/domain/dictionary_helper.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/main.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/main.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pubspec.lock" beforeDir="false" afterPath="$PROJECT_DIR$/pubspec.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pubspec.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/pubspec.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/lib.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/screens/dictionary_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/screens/dictionary_screen.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/widgets/card_widget.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/widgets/card_widget.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/widgets/reading_text.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/widgets/reading_text.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/import_jmdict_unihan.py" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/import_jmdict_unihan.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

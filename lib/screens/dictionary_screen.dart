@@ -237,19 +237,26 @@ class DictionaryScreenState extends State<DictionaryScreen> {
                         ),
                       )
                     : showReadingAbove
-                        ? FuriganaText(
-                            kanji: displayHeadword,
-                            reading: displayReading,
-                            languageTag: entry.lang,
-                            kanjiStyle: TextStyle(
-                              fontSize: 24,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            readingStyle: TextStyle(
-                              fontSize: 14,
-                              color: Colors.lightBlueAccent,
-                            ),
+                        ? Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              FuriganaText(
+                                reading: displayReading,
+                                languageTag: entry.lang,
+                                readingStyle: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.lightBlueAccent,
+                                ),
+                              ),
+                              Text(
+                                displayHeadword,
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           )
                         : Text(
                             displayHeadword,

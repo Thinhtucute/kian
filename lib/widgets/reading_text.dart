@@ -1,9 +1,7 @@
-import 'package:flutter/material.dart';
+  import 'package:flutter/material.dart';
 
 class FuriganaText extends StatelessWidget {
-  final String kanji;
   final String reading;
-  final TextStyle? kanjiStyle;
   final TextStyle? readingStyle;
   final String languageTag;
   final String? readingLabel;
@@ -12,10 +10,8 @@ class FuriganaText extends StatelessWidget {
 
   const FuriganaText({
     super.key,
-    required this.kanji,
     required this.reading,
     required this.languageTag,
-    this.kanjiStyle,
     this.readingStyle,
     this.readingLabel,
     this.showReadingLabel = false,
@@ -33,9 +29,10 @@ class FuriganaText extends StatelessWidget {
       letterSpacing: (isCn || isJp) ? 0.4 : 0.0,
     );
 
-    final String displayReading = reading;
+    if (reading.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
-    // Simple column with reading above kanji
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -53,24 +50,12 @@ class FuriganaText extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
           ),
-        // Reading (kana/pinyin)
         Text(
-          displayReading,
+          reading,
           style: resolvedReadingStyle,
           textAlign: TextAlign.center,
         ),
-        SizedBox(height: verticalSpacing),
-        // Kanji text
-        Text(
-          kanji,
-          style: kanjiStyle ?? TextStyle(
-            fontSize: 25,
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            height: 1.0,
-          ),
-          textAlign: TextAlign.center,
-        ),
+        if (verticalSpacing > 0) SizedBox(height: verticalSpacing),
       ],
     );
   }

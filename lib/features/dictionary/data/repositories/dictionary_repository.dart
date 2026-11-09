@@ -4,6 +4,7 @@ import 'package:kian/features/dictionary/domain/entry_model.dart';
 import 'package:kian/features/dictionary/domain/entry_presentation_mapper.dart';
 import 'package:kian/features/dictionary/domain/example_model.dart';
 import 'package:kian/features/dictionary/domain/headword_model.dart';
+import 'package:kian/features/dictionary/domain/kanji_detail_model.dart';
 import 'package:kian/features/dictionary/domain/sense_model.dart';
 
 class DictionaryRepository {
@@ -132,6 +133,15 @@ class DictionaryRepository {
     return false;
   }
 
+  static bool _isKanaQuery(String query) {
+    return query.runes.any(
+      (rune) =>
+          (rune >= 0x3040 && rune <= 0x309F) ||
+          (rune >= 0x30A0 && rune <= 0x30FF) ||
+          (rune >= 0xFF66 && rune <= 0xFF9F),
+    );
+  }
+
   static String _buildFtsQuery(String query) {
     if (_isCjkQuery(query) && query.length > 1) {
       return '"$query"';
@@ -210,6 +220,9 @@ class DictionaryRepository {
   }) async {
     final db = await DictionaryDatabase.getDatabase();
     final readingClause = _readingHeadwordWhereClause(languageTag);
+    final useGlob = _isCjkQuery(query) || _isKanaQuery(query);
+    final prefixOperator = useGlob ? 'GLOB' : 'LIKE';
+    final prefixPattern = useGlob ? '$query*' : '$query%';
 
     final results = await db.rawQuery('''
       SELECT DISTINCT
@@ -255,10 +268,10 @@ class DictionaryRepository {
         ) AS gloss
       FROM headword h
       JOIN entry e ON e.id = h.entry_id
-      WHERE $scriptClause AND h.text LIKE ? AND e.lang = ?
+      WHERE $scriptClause AND h.text $prefixOperator ? AND e.lang = ?
       ORDER BY e.id ASC
       LIMIT ?
-    ''', [_definitionLanguageTag, '$query%', languageTag, limit]);
+    ''', [_definitionLanguageTag, prefixPattern, languageTag, limit]);
 
     return results;
   }
@@ -267,7 +280,8 @@ class DictionaryRepository {
     Map<String, Object?> row, {
     required String languageTag,
   }) {
-    return EntryPresentationMapper.buildEntryFromSource(row, languageTag: languageTag);
+    return EntryPresentationMapper.buildEntryFromSource(row,
+        languageTag: languageTag);
   }
 
   static Future<Entry?> getEntryModelById(
@@ -357,7 +371,8 @@ class DictionaryRepository {
         showReadingAbove: base.showReadingAbove,
         displayHeadword: base.displayHeadword,
         displayReading: base.displayReading,
-        headwords: EntryPresentationMapper.buildHeadwordListFromSource(headwords),
+        headwords:
+            EntryPresentationMapper.buildHeadwordListFromSource(headwords),
         senses: EntryPresentationMapper.buildSenseListFromSource(senses),
         examples: EntryPresentationMapper.buildExampleListFromSource(examples),
       );
@@ -392,6 +407,28 @@ class DictionaryRepository {
       ORDER BY is_primary DESC, position ASC, id ASC
     ''', [entryId]);
     return EntryPresentationMapper.buildHeadwordListFromSource(rows);
+  }
+
+  static Future<KanjiDetail?> getKanjiDetailModel(String character) async {
+    final db = await DictionaryDatabase.getDatabase();
+    final characterRows = await db.rawQuery('''
+      SELECT id, character, codepoint
+      FROM cjk_char
+      WHERE character = ?
+      LIMIT 1
+    ''', [character]);
+
+    if (characterRows.isEmpty) return null;
+
+    final characterRow = characterRows.first;
+    final propertyRows = await db.rawQuery('''
+      SELECT key, value
+      FROM cjk_char_property
+      WHERE char_id = ?
+      ORDER BY key ASC, id ASC
+    ''', [characterRow['id']]);
+
+    return KanjiDetail.fromRows(character, characterRow, propertyRows);
   }
 
   static Future<List<Sense>> getMeaningsModels(
@@ -454,14 +491,15 @@ class DictionaryRepository {
         limit: limit,
       );
 
-      final mapResults = results.isNotEmpty || !_isCjkQuery(query)
-          ? results
-          : await _searchHeadwordLike(
-              query: query,
-              languageTag: resolvedLanguageTag,
-              scriptClause: scriptClause,
-              limit: limit,
-            );
+      final mapResults =
+          results.isNotEmpty || (!_isCjkQuery(query) && !_isKanaQuery(query))
+              ? results
+              : await _searchHeadwordLike(
+                  query: query,
+                  languageTag: resolvedLanguageTag,
+                  scriptClause: scriptClause,
+                  limit: limit,
+                );
 
       return EntryPresentationMapper.buildEntryListFromSource(
         mapResults,
@@ -488,14 +526,15 @@ class DictionaryRepository {
         limit: limit,
       );
 
-      final mapResults = results.isNotEmpty || !_isCjkQuery(query)
-          ? results
-          : await _searchHeadwordLike(
-              query: query,
-              languageTag: resolvedLanguageTag,
-              scriptClause: scriptClause,
-              limit: limit,
-            );
+      final mapResults =
+          results.isNotEmpty || (!_isCjkQuery(query) && !_isKanaQuery(query))
+              ? results
+              : await _searchHeadwordLike(
+                  query: query,
+                  languageTag: resolvedLanguageTag,
+                  scriptClause: scriptClause,
+                  limit: limit,
+                );
 
       return EntryPresentationMapper.buildEntryListFromSource(
         mapResults,

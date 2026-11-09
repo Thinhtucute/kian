@@ -26,7 +26,7 @@ class DictionaryDatabaseDebugger {
     }
 
     kLog('\nChecking FTS5 tables...');
-    const ftsTables = ['headword_fts', 'definition_fts', 'example_fts'];
+    const ftsTables = ['headword_fts', 'definition_fts'];
 
     for (final table in ftsTables) {
       try {

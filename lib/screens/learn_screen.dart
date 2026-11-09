@@ -7,6 +7,7 @@ import 'package:kian/widgets/session_stats.dart';
 import 'package:kian/services/cloud/auth_service.dart';
 import 'package:kian/features/fsrs/application/export_service.dart';
 import 'package:kian/features/fsrs/application/learn_session.dart';
+import 'package:kian/features/fsrs/data/local/fsrs_database.dart';
 import 'package:kian/features/dictionary/domain/example_model.dart';
 import 'package:kian/features/dictionary/domain/sense_model.dart';
 import 'package:provider/provider.dart';
@@ -101,11 +102,18 @@ class LearnScreenState extends State<LearnScreen> {
   }
 
   Future<void> _handleLogout() async {
+    final hasNetworkConnection = await AuthService.hasNetworkConnection();
+    if (!mounted) return;
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        title: Text(hasNetworkConnection ? 'Logout' : 'Logout while offline'),
+        content: Text(
+          hasNetworkConnection
+              ? 'Are you sure you want to logout?'
+              : 'You are offline. Any review progress that has not synced may be lost if you logout. Are you sure you want to continue?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -122,6 +130,7 @@ class LearnScreenState extends State<LearnScreen> {
     if (confirm == true) {
       try {
         await AuthService.signOut();
+        await FSRSDatabase.deleteDatabase();
         // Navigation will be handled by auth state listener
       } catch (e) {
         if (mounted) {

@@ -4,6 +4,7 @@ import 'package:kian/core/logger.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+import 'config.dart';
 import 'extractor.dart';
 import 'download_progress.dart';
 import 'downloader.dart';
@@ -18,12 +19,7 @@ class DictionaryInstaller {
         _extractor = extractor ?? DictionaryArchiveExtractor(),
         _validator = validator ?? DictionaryValidator();
 
-  static const String databaseFileName = 'dictionary.db';
-  static const String archiveFileName = 'dict_jp_cn.zip';
-  static final Uri downloadUri = Uri.parse(
-    'https://github.com/Thinhtucute/kian/releases/'
-    'download/dict-v1/dict_jp_cn.zip',
-  );
+  static final Uri downloadUri = Uri.parse(Config.dictUrl);
 
   final DictionaryDownloader _downloader;
   final DictionaryArchiveExtractor _extractor;
@@ -61,7 +57,7 @@ class DictionaryInstaller {
   }) async {
     final databasePath = await getDatabasePath();
     final directory = dirname(databasePath);
-    final archivePath = join(directory, archiveFileName);
+    final archivePath = join(directory, Config.archiveFileName);
     final partialArchivePath = '$archivePath.download';
     final temporaryDatabasePath = '$databasePath.installing';
 
@@ -108,12 +104,12 @@ class DictionaryInstaller {
   }
 
   Future<String> getDatabasePath() async {
-    return join(await getDatabasesPath(), databaseFileName);
+    return join(await getDatabasesPath(), Config.databaseFileName);
   }
 
   Future<void> deleteInstallation() async {
     final databasePath = await getDatabasePath();
-    final archivePath = join(dirname(databasePath), archiveFileName);
+    final archivePath = join(dirname(databasePath), Config.archiveFileName);
 
     await _deleteIfExists(File(databasePath));
     await _deleteIfExists(File('$databasePath.installing'));
